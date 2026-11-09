@@ -1,0 +1,100 @@
+name: OSH image
+
+# Builds the container image for the osh-labs deployment and pushes it to
+# ghcr.io/osh-labs/docmost-mcp-remote. Runs on tags such as osh-v1.2.3.1
+# (upstream version plus our patch level) or by hand. The upstream
+# release.yml only reacts to tags of the form v1.2.3, so it does not run for
+# these tags. The deployment pins the image by the digest printed in the job
+# summary (SEM-docmost deploy/.env, MCP_IMAGE).
+
+on:
+  push:
+    tags: ["osh-v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: osh-image-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  IMAGE: ghcr.io/osh-labs/docmost-mcp-remote
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U test" --health-interval 2s --health-timeout 3s
+          --health-retries 30
+    env:
+      DATABASE_TEST_URL: postgresql://test:test@localhost:5432/test
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7.6.0
+        with:
+          enable-cache: true
+      - run: uv sync --locked
+      - run: uv run ruff format --check .
+      - run: uv run ruff check .
+      - run: uv run mypy
+      - run: uv run pytest
+      - name: Audit locked runtime dependencies
+        run: |
+          uv export --frozen --no-dev --no-emit-project --format requirements-txt -o requirements.txt
+          uv run pip-audit --strict --disable-pip --require-hashes -r requirements.txt
+
+  image:
+    needs: check
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - id: meta
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
+        with:
+          images: ${{ env.IMAGE }}
+          tags: |
+            type=ref,event=tag
+            type=sha,format=long
+      - id: build
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          # Lightsail bundles are x86_64.
+          platforms: linux/amd64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          annotations: ${{ steps.meta.outputs.annotations }}
+      - name: Print the digest for deploy/.env
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          {
+            echo "### Image built"
+            echo
+            echo "Set this in SEM-docmost deploy/.env:"
+            echo
+            echo '```'
+            echo "MCP_IMAGE=${IMAGE}@${DIGEST}"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
