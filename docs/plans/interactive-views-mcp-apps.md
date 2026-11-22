@@ -260,6 +260,18 @@ Order of work:
 2. If allowed: build the sign-in handoff (connector and Docmost fork), then the embed route.
 3. If not allowed: build 3B, and keep the shell so 3A turns on when the host allows it.
 
+Usability requirement (maintainer decision): opening a page must never ask the user to sign
+in to Docmost. The handoff below is automatic and runs each time the view opens; the user
+types nothing. Go to 3B instead of 3A if the real-host check shows either of these:
+
+- the user has to enter Docmost credentials in the frame in any normal session;
+- Claude's own "allow this site" question appears more often than once per conversation.
+
+What is expected to recur, and is accepted: Claude's one-click question to allow the Docmost
+origin, once per conversation (documented by Anthropic for custom connectors). A member
+whose stored Docmost session has expired signs in to the connector again, exactly as for
+every other tool today (`RELOGIN_MODE`); that is not specific to the editor.
+
 Connector side (this repository):
 
 - Resource meta on `page.html`: `_meta.ui.csp.frameDomains = [<Docmost origin>]` and
