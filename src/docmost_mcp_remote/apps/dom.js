@@ -3,6 +3,7 @@
   "use strict";
 
   const PLAIN_ATTRS = ["class", "id", "role", "type", "title", "tabindex"];
+  const BLOCKED_TAGS = ["script", "iframe", "object", "embed", "style", "link", "meta"];
   const TAG = "docmost-untrusted-content";
   const ENVELOPE = new RegExp("^<" + TAG + ' source="[^"]*">\\n([\\s\\S]*)\\n</' + TAG + ">$");
   const ESCAPED_CLOSE = new RegExp("&lt;/" + TAG, "g");
@@ -34,6 +35,9 @@
   }
 
   function el(tag, attrs) {
+    if (typeof tag !== "string" || BLOCKED_TAGS.indexOf(tag.trim().toLowerCase()) >= 0) {
+      throw new Error("tag not allowed: " + String(tag));
+    }
     const node = document.createElement(tag);
     Object.keys(attrs || {}).forEach(function (key) {
       const value = attrs[key];

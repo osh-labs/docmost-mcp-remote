@@ -9,6 +9,7 @@ from typing import Any
 
 import pytest
 from fastmcp.exceptions import ToolError
+from mcp.shared.exceptions import MCPError
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 from docmost_mcp_remote.apps import VIEW_NAMES, build_view, view_uri
@@ -224,6 +225,12 @@ def test_token_without_read_sees_no_views(on: RunningServer) -> None:
     token = _token_without_read(on)
     assert not set(OPEN_TOOLS) & set(on.tools(token))
     assert not [uri for uri in on.resources(token) if uri.startswith("ui://")]
+    for uri in UI_URIS:
+        with pytest.raises(MCPError):
+            on.read_resource(token, uri)
+    for tool in OPEN_TOOLS:
+        with pytest.raises(ToolError):
+            on.call(token, tool, {"page": "p1"} if tool == "open_page_history" else {})
 
 
 def test_open_wiki_without_arguments(on: RunningServer) -> None:

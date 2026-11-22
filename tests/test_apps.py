@@ -160,3 +160,102 @@ def test_parse_unified_diff() -> None:
     kinds = [line["kind"] for line in cut_hunk["lines"]]
     assert kinds == ["context", "del", "add", "context"][: len(kinds)]
     assert len(kinds) >= 3
+
+
+_EL_RUNNER = """
+const vm = require("vm");
+const fs = require("fs");
+globalThis.window = {};
+globalThis.document = {
+  createElement: (tag) => ({
+    tag, attrs: {}, children: [],
+    setAttribute(k, v) { this.attrs[k] = v; },
+    addEventListener() {},
+    appendChild(c) { this.children.push(c); },
+  }),
+  createTextNode: (value) => ({ text: value }),
+};
+vm.runInThisContext(fs.readFileSync(process.argv[1], "utf8"));
+const out = {};
+for (const tag of JSON.parse(fs.readFileSync(0, "utf8"))) {
+  try {
+    out[tag] = window.dom.el(tag, { class: "x" }).tag;
+  } catch (error) {
+    out[tag] = "refused";
+  }
+}
+process.stdout.write(JSON.stringify(out));
+"""
+
+
+def run_node(script: str, asset: str, payload: Any) -> Any:
+    executable = shutil.which("node")
+    assert executable is not None
+    done = subprocess.run(  # noqa: S603
+        [executable, "-e", script, str(ASSETS.joinpath(asset))],
+        input=json.dumps(payload),
+        capture_output=True,
+        text=True,
+        check=True,
+        timeout=30,
+    )
+    return json.loads(done.stdout)
+
+
+@node
+def test_el_refuses_active_tags() -> None:
+    blocked = ["script", "iframe", "object", "embed", "style", "link", "meta", "SCRIPT", " Iframe"]
+    out = run_node(_EL_RUNNER, "dom.js", ["div", "button", *blocked])
+    assert out["div"] == "div"
+    assert out["button"] == "button"
+    for tag in blocked:
+        assert out[tag] == "refused", tag
+
+
+_BRIDGE_RUNNER = """
+const vm = require("vm");
+const fs = require("fs");
+const sent = [];
+let handler = null;
+const parent = { postMessage: (message) => sent.push(message) };
+const other = {};
+globalThis.document = {
+  documentElement: { dataset: {}, style: { setProperty() {} }, scrollWidth: 1, scrollHeight: 1 },
+};
+globalThis.window = {
+  parent,
+  addEventListener: (type, fn) => { if (type === "message") handler = fn; },
+};
+vm.runInThisContext(fs.readFileSync(process.argv[1], "utf8"));
+const bridge = window.mcpBridge;
+const contexts = [];
+bridge.onHostContext((value) => contexts.push(value.theme));
+const reply = (theme) => ({ jsonrpc: "2.0", id: 1, result: { hostContext: { theme } } });
+bridge.start({ name: "t", version: "1" }).then(() => {
+  const copy = bridge.hostContext();
+  copy.theme = "mutated";
+  process.stdout.write(JSON.stringify({
+    methods: sent.map((m) => m.method),
+    contexts,
+    theme: bridge.hostContext().theme,
+    copyIsFresh: bridge.hostContext() !== bridge.hostContext(),
+  }));
+});
+handler({ source: other, data: reply("from-other-window") });
+handler({ source: parent, data: Object.assign(reply("no-jsonrpc"), { jsonrpc: "1.0" }) });
+handler({ source: parent, data: "not an object" });
+handler({ source: parent, data: reply("dark") });
+"""
+
+
+@node
+def test_bridge_checks_source_and_jsonrpc_and_copies_context() -> None:
+    out = run_node(_BRIDGE_RUNNER, "bridge.js", None)
+    assert out["methods"] == [
+        "ui/initialize",
+        "ui/notifications/initialized",
+        "ui/notifications/size-changed",
+    ]
+    assert out["contexts"] == ["dark"]
+    assert out["theme"] == "dark"
+    assert out["copyIsFresh"] is True

@@ -74,6 +74,12 @@
     }
   }
 
+  function copyContext() {
+    return typeof structuredClone === "function"
+      ? structuredClone(context)
+      : JSON.parse(JSON.stringify(context));
+  }
+
   function mergeContext(partial) {
     if (!partial || typeof partial !== "object") return;
     const next = Object.assign({}, context, partial);
@@ -238,7 +244,7 @@
       subscribe("context", fn);
     },
     hostContext: function () {
-      return context;
+      return copyContext();
     },
     callTool: function (name, args) {
       return request("tools/call", { name: name, arguments: args || {} });
