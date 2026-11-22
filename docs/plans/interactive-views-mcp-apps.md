@@ -27,11 +27,13 @@ Claude.
 |---|---|
 | Views | Wiki browser, change review, co-editing page view |
 | Writes from the UI | Read-only first. UI writes only in Phase 3, behind its own flag and a separate go decision |
-| Target | Phases 1 and 2 are upstream-ready: feature flag default off, ADR, `README.ru.md` mirrored, no deployment-specific choices. Phase 3 is fork-only, because it contains AGPL-3.0 code and upstream is Apache-2.0 |
+| Target | Phases 1 and 2 are upstream-ready: feature flag default off, ADR, `README.ru.md` mirrored, no deployment-specific choices. Phase 3 is fork-only: 3A needs changes in the Docmost fork, and 3B contains AGPL-3.0 code |
 | Spike | None. No separate real-host test before building (see section 6) |
-| Phase 3 editor | WYSIWYG is a requirement, built on Docmost's own editor package `@docmost/editor-ext`, taken from `osh-labs/SEM-docmost` at the exact commit the deployed instance runs |
-| Licence | Editor source, editor bundle and the page view are AGPL-3.0 and live in this public fork. Everything else stays Apache-2.0 |
-| Frontend tooling | Phases 1 and 2: none. Hand-written vanilla JS, inlined into one HTML string per view. Phase 3 adds a pinned npm build for the editor bundle only (section 5, Phase 3). No CDN in any phase |
+| Phase 3 goal | "Like Notion": feature parity with the inline editing of Notion's connector in Claude |
+| Phase 3 path | Primary (3A): the real Docmost editor embedded in the view, signed in as the member. Fallback (3B): a WYSIWYG editor bundled into the view, built only if Claude does not allow embedded sites for this connector |
+| Phase 3B editor base | Docmost's own editor package `@docmost/editor-ext`, taken from `osh-labs/SEM-docmost` at the exact commit the deployed instance runs |
+| Licence | 3A adds no Docmost code to this repository. If 3B is built, its editor source, bundle and page view are AGPL-3.0 and live in this public fork. Everything else stays Apache-2.0 |
+| Frontend tooling | Phases 1 and 2: none. Hand-written vanilla JS, inlined into one HTML string per view. Phase 3A adds none in this repository. Phase 3B, if built, adds a pinned npm build for the editor bundle only. No CDN in any phase |
 
 ## 3. Constraints from research
 
@@ -45,8 +47,9 @@ Claude.
   (`tools/untrusted.py`), with only the closing tag neutralised. It is not HTML-escaped.
   Views must render with `createElement` and `textContent` only.
 - Entry points, the side panel, app tools and embedded sites are limited to some
-  organizations. Treat them as progressive enhancement. The core design must work with
-  `inline` and `fullscreen` only.
+  organizations. Phases 1 and 2 treat them as progressive enhancement and work with
+  `inline` and `fullscreen` only. Phase 3A depends on embedded sites by decision; Phase 3B
+  is its fallback.
 - Claude can cache a connector's tool list for up to about two hours. After a deploy, use
   Customize, Connectors, the connector's menu, "Refresh tools list".
 - Open risk: ext-apps issue 671 (views not rendering in Claude; some reporters use FastMCP).
@@ -64,12 +67,12 @@ src/docmost_mcp_remote/apps/
   base.css           host CSS variables, transparent background, light and dark
   browser.html/.js   wiki browser view
   review.html/.js    change-review view
-  page.html/.js      co-editing page view (Phase 3, AGPL-3.0)
-  vendor/editor.bundle.js      built WYSIWYG editor bundle, committed (Phase 3, AGPL-3.0)
-  vendor/editor.schema.json    node and mark names of the built schema (Phase 3)
-  vendor/editor.licenses.txt   licence texts of everything in the bundle (Phase 3)
+  page.html/.js      page view: shell that frames the Docmost editor (Phase 3A); AGPL-3.0 once it includes the 3B editor
+  vendor/editor.bundle.js      built WYSIWYG editor bundle, committed (Phase 3B only, AGPL-3.0)
+  vendor/editor.schema.json    node and mark names of the built schema (Phase 3B only)
+  vendor/editor.licenses.txt   licence texts of everything in the bundle (Phase 3B only)
 src/docmost_mcp_remote/tools/views.py   register(mcp, settings, members): ui:// resources and open_* tools
-frontend/editor/     source of the editor bundle: package.json, package-lock.json, docmost.pin, build and fetch scripts, tests (Phase 3, AGPL-3.0)
+frontend/editor/     source of the editor bundle: package.json, package-lock.json, docmost.pin, build and fetch scripts, tests (Phase 3B only, AGPL-3.0)
 ```
 
 - Load assets at import time with `importlib.resources.files(...)`, the pattern in
@@ -78,7 +81,9 @@ frontend/editor/     source of the editor bundle: package.json, package-lock.jso
 - `build_view` inlines `base.css`, `bridge.js`, `dom.js` and the view script into the HTML
   shell. Resource URIs carry a content hash, for example `ui://docmost/browser-<sha8>.html`,
   so a changed view never collides with a host-side cache.
-- No `ui.domain`, no external origins, no `permissions`. `prefersBorder: false`.
+- No `ui.domain`, no external origins, no `permissions`. `prefersBorder: false`. The one
+  exception is the Phase 3A page view, which declares `ui.domain` and one `frameDomains`
+  entry.
 - `tools/views.py` follows `tools/navigate.py` and `tools/health.py`: a `register(...)`
   function, nested closures, `as_member(members, action)`, `SpacePolicy`,
   `auth=require_scopes("read")`, annotation constants.
@@ -109,7 +114,7 @@ About 200 lines, an IIFE with `"use strict"`, in the style of `web/upload.js`.
 | Setting | Default | Effect |
 |---|---|---|
 | `INTERACTIVE_VIEWS` | `false` | When false, `views.register` is not called and no existing tool gains `_meta.ui`. Tool and resource lists are identical to 1.2.3 |
-| `INTERACTIVE_EDITING` | `false` | Phase 3 only. Enables Save from the page view. Requires `INTERACTIVE_VIEWS` |
+| `INTERACTIVE_EDITING` | `false` | Phase 3 only. Enables the embedded editor and its sign-in handoff (3A), or Save from the bundled editor (3B). Requires `INTERACTIVE_VIEWS` |
 
 ### 4.4 Security rules for all views
 
@@ -117,8 +122,8 @@ These go into `docs/security-model.md` as a new trust boundary (the view iframe)
 
 1. DOM text APIs only. A pytest lints each assembled view for `innerHTML`, `outerHTML`,
    `insertAdjacentHTML`, `document.write`, `eval(`, `new Function`, and any `http://` or
-   `https://` URL. The lint covers first-party code. The Phase 3 vendor bundle is excluded
-   from the lint and covered by the rules in Phase 3, "Editor security".
+   `https://` URL. The lint covers first-party code. The Phase 3B vendor bundle is excluded
+   from the lint and covered by the rules in Phase 3B, "Editor security".
 2. `unwrap()` strips the envelope for display only. Wiki text never goes into `ui/message`
    or `ui/update-model-context`. Those carry fixed template strings plus server-generated
    ids. Claude re-reads content through the normal wrapped tools.
@@ -129,6 +134,10 @@ These go into `docs/security-model.md` as a new trust boundary (the view iframe)
    unchanged.
 5. `ui://` resources use `auth=require_scopes("read")` and contain no member data.
 6. No trash, move, restore, people or admin action is ever callable as a button in a view.
+7. Messages between a view and an embedded frame (Phase 3A) are checked on both sides
+   against one exact origin, never `*`. A view treats frame messages as untrusted: it
+   validates their shape, accepts ids only in the id format, and passes URLs through
+   `safeHref()`.
 
 ## 5. Phases
 
@@ -188,28 +197,173 @@ Browser:
 - New model-visible tool `open_page_history(page)`: a version list that calls
   `list_page_history` and `diff_page` from the view.
 
-### Phase 3: co-editing page view (separate go decision; needs `INTERACTIVE_EDITING`)
+### Phase 3: editing alongside Claude, like Notion (separate go decision; needs `INTERACTIVE_EDITING`)
+
+#### Goal and parity definition
+
+Goal: feature parity with the inline editing of Notion's connector in Claude. Anthropic's
+launch post says that for tools such as Notion and Confluence the user gets the full
+editor, signed into their own account, beside the chat or full screen, and that Claude can
+make changes while the user edits. The mechanism is most likely the "embedded sites"
+feature (the real web app in a frame inside the view); that is an inference from the post
+and the embedded-sites documentation, not a statement by Notion.
+
+| Notion connector behaviour | Docmost equivalent | Path |
+|---|---|---|
+| Full editor beside the chat or full screen, signed in as yourself | The real Docmost editor in a frame inside the page view | 3A |
+| Every block type, images, comments, slash menu | Native Docmost | 3A |
+| Changes are saved as you type | Native Docmost autosave and collaboration | 3A |
+| Claude's changes appear while the page is open | Claude writes through the existing tools; Docmost's collaboration layer updates the open editor (to verify, see below) | 3A |
+| Claude knows which page is open | The frame reports navigation; the view sends ids with `ui/update-model-context` | 3A |
+| Create a page, then keep building in it | `create_page`, then `open_page` | 3A |
+| Open the app without asking Claude | Entry point on `open_wiki` (Phase 1; limited availability) | 1 |
+
+Phase 3B (bundled editor) does not reach parity: no live sync, placeholders for media, no
+comments. It is a degraded mode for hosts or accounts where embedded sites are not allowed.
+
+Limits that the Claude sandbox places on any embedded site (Claude documentation):
+
+- `window.open()` and `target="_blank"` do nothing; links must be relayed through the view.
+- `alert()`, `prompt()` and `print()` do nothing; `confirm()` returns `false`.
+- File downloads and `requestFullscreen()` do not work.
+- Once a frame origin is allowed for a custom connector, every view of that connector
+  loses clipboard-write, camera, microphone and location.
+- The user must allow the origin in a conversation; expect the question again in new
+  conversations. Not available on mobile.
+- Embedded sites for custom connectors are available to a limited set of organizations and
+  need the unified Claude experience. A connector added long ago may need to be removed
+  and added again. The connector URL path must be lower-case, without `%`, `;` or `//`.
+
+Common to 3A and 3B:
 
 - New model-visible tool `open_page(page)`, scope `read`, resource `page.html`. The view
-  declares `fullscreen` so Claude opens it in the side panel where that exists.
-- New app-only tool `page_status(page)` with `visibility=["app"]`, returning
-  `{id, updated_at, last_updated_by}`. The view polls it every 15 seconds while visible
-  (4 calls per minute against the default limit of 60) and reloads the body when Claude or
-  another member changes the page.
+  declares `fullscreen` so Claude opens it in the side panel where that exists. The result
+  is a page summary dict, so a text-only host still gets a useful answer.
 - Supersession: the server adds `{created_at, seq}` to `open_page` results. Views announce
-  it on a `BroadcastChannel`; only the newest instance polls and updates model context.
-- Context sharing: `ui/update-model-context` carries
-  `{page_id, heading_index, unsaved_changes}`, so "rewrite this section" resolves without
-  wiki text passing through the view. `heading_index` is the ordinal of the nearest
-  heading before the cursor; Claude resolves it with `get_page_outline`. When
-  `unsaved_changes` is true the fixed context text tells Claude to ask the user to save
-  before it changes the page.
+  it on a `BroadcastChannel`; only the newest instance updates model context.
+- Context sharing: `ui/update-model-context` carries ids only (`page_id`, `space_id`), so
+  "rewrite this section" resolves without wiki text passing through the view.
 
-#### WYSIWYG editor (requirement)
+#### Phase 3A: embedded Docmost editor (primary)
+
+The page view is a thin shell that frames the real Docmost web app. It contains no Docmost
+code, so it stays Apache-2.0.
+
+Order of work:
+
+1. Availability probe (decides whether 3B is needed). Deploy the shell with `frameDomains`
+   and `ui.domain`, set the two Docmost environment settings below, and open a page in
+   Claude Desktop and claude.ai. After connecting, the shell reads
+   `hostCapabilities.sandbox.csp.frameDomains`. In the iframe console, a line that starts
+   with `[mcp-ext-apps-host]` names `frameDomains`; "Not among the sites that Claude allows
+   this connector to show" means the feature is not available to the account.
+2. If allowed: build the sign-in handoff (connector and Docmost fork), then the embed route.
+3. If not allowed: build 3B, and keep the shell so 3A turns on when the host allows it.
+
+Connector side (this repository):
+
+- Resource meta on `page.html`: `_meta.ui.csp.frameDomains = [<Docmost origin>]` and
+  `_meta.ui.domain = sha256(<connector URL>)[:32] + ".claudemcpcontent.com"`. The hash is
+  over the exact connector URL string (`{PUBLIC_URL}/mcp`; a trailing slash changes it).
+  If the value is wrong Claude shows an error instead of the view. `frameDomains` entries
+  are `https://host` with a public DNS name, no path, no trailing slash. `ui.domain` is in
+  Claude's format, so `INTERACTIVE_EDITING` targets Claude; other hosts get the fallback.
+- The Docmost origin is the one `page_link` uses (`tools/common.py:89`). Add a
+  `DOCMOST_PUBLIC_URL` setting only if `DOCMOST_URL` is not the browser-facing origin.
+- Runtime check: when the host's `frameDomains` capability does not include the Docmost
+  origin, the shell shows the fallback (3B if built; otherwise the Phase 1 read-only
+  preview and an "Open in Docmost" button).
+- Sign-in handoff (Claude passes no session to the frame, and
+  `document.requestStorageAccess()` is rejected):
+  1. The frame loads Docmost's embed route without a session, creates a random verifier,
+     and posts `ready` with `challenge = SHA-256(verifier)` to the shell.
+  2. The shell calls the new app-only tool `editor_session(page, challenge)`
+     (`visibility=["app"]`, scope `read`). It returns `{code, expires_in}`. The code is 32
+     random bytes, valid 60 seconds, single use, stored as a hash with the member, the
+     grant and the challenge. New table and Alembic migration; follow `db/upload_store.py`.
+  3. The shell posts the code to the frame, with the Docmost origin as target origin.
+  4. The frame sends `{code, verifier}` to Docmost's `POST /api/auth/embed-login`.
+  5. Docmost's server calls the connector's new route `POST /embed/redeem` with
+     `Authorization: Bearer <EMBED_SHARED_SECRET>`. The connector checks the secret in
+     constant time, the code (unused, not expired, grant not revoked) and that
+     `SHA-256(verifier)` equals the stored challenge. It returns the member's Docmost auth
+     token once and marks the code used.
+  6. Docmost verifies the token as it verifies any session token and sets its session
+     cookie for the frame.
+- Why this shape: the connector returns only a token that Docmost itself issued to that
+  member, so it cannot assert an identity Docmost has not authenticated. A code that leaks
+  from a tool result is useless without the verifier, which exists only in the frame.
+- `/embed/redeem`: server to server only, no CORS, rate limited, one audit row per call,
+  path kept out of the access log like `/uploads/` (`web/downloads.py:51`).
+- Messages, frame to shell: `ready {challenge}`, `navigated {page_id, slug_id, space_id}`,
+  `open_link {url}`, `signed_out`. Shell to frame: `code {code}`. On `navigated` the shell
+  updates model context. On `open_link` it calls `ui/open-link`.
+- New settings: `EMBED_SHARED_SECRET` (32 characters or more; required when
+  `INTERACTIVE_EDITING=true`).
+- `INSTRUCTIONS` gains one sentence when the flag is on: while the user has a page open in
+  the editor, prefer `replace_section`, append and prepend over replacing the whole body.
+
+Docmost side (separate work package in `osh-labs/SEM-docmost`; that repository is AGPL-3.0
+already). Facts read on 2026-11-22 at `main`, commit `8be41c2`, version 0.97.0:
+
+- Framing is already configurable: `IFRAME_EMBED_ALLOWED` and `IFRAME_ALLOWED_ORIGINS`
+  (`environment.service.ts:385-398`, applied in `main.ts`). Set
+  `IFRAME_EMBED_ALLOWED=true` and
+  `IFRAME_ALLOWED_ORIGINS=https://<hash>.claudemcpcontent.com,https://claude.ai`. Never
+  leave the list empty (empty allows any origin) and never use a wildcard over
+  `claudemcpcontent.com`. Verify that the result is a `frame-ancestors` directive and that
+  no `X-Frame-Options: DENY` or `SAMEORIGIN` remains on the embed routes.
+- The session cookie `authToken` is set with `httpOnly` and `sameSite: 'lax'`
+  (`auth.controller.ts:222`). A framed page is third-party, so the cookie set by
+  `embed-login` needs `SameSite=None; Secure; Partitioned`. The normal sign-in cookie stays
+  as it is.
+- New endpoint `POST /api/auth/embed-login`, active only when the connector URL and
+  `EMBED_SHARED_SECRET` are configured. It redeems the code as described above, accepts
+  requests only from its own origin, and is rate limited.
+- New client route for the embed: it performs the handoff, opens the page editor, reports
+  navigation to the parent, relays external links, and accepts and sends messages only for
+  the one configured parent origin. An option to hide the global navigation is desirable.
+- To verify in the fork: the collaboration websocket and its token work with the
+  partitioned cookie; which client features use `window.confirm`, `window.open`, downloads
+  or clipboard-write and therefore degrade inside the frame.
+
+To verify for "Claude's changes appear while the page is open":
+
+- That a body write through the API reaches an open editor. `docs/docmost-api-notes.md`
+  records that with `COLLAB_DISABLE_REDIS=true` a body update answers 200 and changes
+  nothing.
+- What happens to text the user typed in the seconds before Claude replaces a whole body.
+  `check_not_busy` (`tools/write.py:102`) guards only against another member, and Claude
+  writes as the same member.
+
+Security notes for 3A (add to `docs/security-model.md`; this touches `web/`, `db/` and the
+member token path, so it gets the extra review of `CONTRIBUTING.md`):
+
+- New capability: the connector can hand a member's Docmost session to a browser frame.
+  Controls: 60-second single-use code, challenge and verifier, hash at rest, shared secret
+  for redemption, grant binding, audit, rate limit.
+- `editor_session` is app-only for tidiness. Visibility is not a boundary; the challenge
+  binding is what makes a model-obtained code useless.
+- Framing is limited to the connector's own `claudemcpcontent.com` origin and `claude.ai`.
+- Wiki content stays inside the Docmost origin. The shell never reads it.
+
+#### Phase 3B: bundled WYSIWYG editor (fallback; build only if the probe fails)
+
+Build this only when the availability probe shows that Claude does not allow embedded
+sites for this connector. Record the decision in the ADR.
 
 The editor works on the page's ProseMirror JSON, the same document that
 `get_page(format="json")` returns and `replace_page_json` writes. Markdown is not involved,
 so the `markdown_loses` problem does not arise.
+
+- New app-only tool `page_status(page)` with `visibility=["app"]`, returning
+  `{id, updated_at, last_updated_by}`. The view polls it every 15 seconds while visible
+  (4 calls per minute against the default limit of 60) and reloads the body when Claude or
+  another member changes the page.
+- Context sharing adds `heading_index` (the ordinal of the nearest heading before the
+  cursor; Claude resolves it with `get_page_outline`) and `unsaved_changes`. When
+  `unsaved_changes` is true the fixed context text tells Claude to ask the user to save
+  before it changes the page.
 
 Editor stack:
 
@@ -226,7 +380,8 @@ Editor stack:
   view or to its `renderHTML` output. A build-time test lists the extensions and fails if
   any node view still reaches the stub.
 
-Facts about the package, checked on 2026-11-22 against upstream `docmost/docmost` main:
+Facts about the package, checked on 2026-11-22 against upstream `docmost/docmost` main
+(`osh-labs/SEM-docmost` main was then at commit `8be41c2`, Docmost 0.97.0, Tiptap 3.31.3):
 
 - It is a private workspace package (`packages/editor-ext`), not on npm (the registry
   returns 404). Its `package.json` has no licence field, so the repository `LICENSE`
@@ -279,7 +434,7 @@ Build and delivery:
 - Upgrade rule, added to `docs/RELEASING.md`: when the deployed Docmost moves to a new
   commit, update `docmost.pin`, rebuild, and commit the new bundle in the same change.
 
-Licence (not legal advice):
+Licence for 3B (not legal advice):
 
 - AGPL-3.0 applies to `frontend/editor/**`, `src/docmost_mcp_remote/apps/vendor/**` and
   `src/docmost_mcp_remote/apps/page.*`. Each directory gets the AGPL-3.0 text and each
@@ -293,10 +448,10 @@ Licence (not legal advice):
 - Source offer: the page view has a "Source" link (through `ui/open-link`) to this
   repository. Both this repository and `osh-labs/SEM-docmost` are public, which covers the
   AGPL network-use clause for people who use the editor.
-- New `docs/adr/0008-agpl-editor-in-fork.md` records the decision, that it narrows
-  `docs/adr/0006-apache-2-license.md` for this fork, and that Phase 3 cannot be proposed
+- New `docs/adr/0009-agpl-editor-in-fork.md` records the decision, that it narrows
+  `docs/adr/0006-apache-2-license.md` for this fork, and that Phase 3B cannot be proposed
   upstream.
-- Keep Phase 3 in its own commits and directories, so that Phases 1 and 2 can be offered
+- Keep 3B in its own commits and directories, so that Phases 1 and 2 can be offered
   upstream without it.
 
 Loading and saving:
@@ -346,7 +501,7 @@ Unverified, to check during implementation:
 - The bundle size, and whether tree-shaking removes the package's DOCX export and Markdown
   helpers.
 
-Out of scope for Phase 3:
+Out of scope for Phase 3B:
 
 - Real-time collaboration through Docmost's collaboration server. The matching schema makes
   it possible later; it still needs a `connectDomains` entry for the Docmost origin and a
@@ -354,8 +509,7 @@ Out of scope for Phase 3:
 - Editing of images, diagrams, embeds, math, mentions and transclusions. They are kept and
   shown as placeholders.
 - Comments, slash menu, drag handles, autosave, three-way merge.
-- Embedding the Docmost site itself (`frameDomains`; needs header and cookie changes in
-  Docmost), and app tools.
+- App tools.
 
 ## 6. Why there is no spike
 
@@ -376,23 +530,28 @@ and the resource meta, and turning the flag off restores 1.2.3 behaviour.
 
 | File | Change |
 |---|---|
-| `src/docmost_mcp_remote/config.py`, `.env.example` | Two flags |
+| `src/docmost_mcp_remote/config.py`, `.env.example` | Two flags; `EMBED_SHARED_SECRET` (Phase 3A) |
 | `src/docmost_mcp_remote/apps/*` | New: assets and `build_view` |
 | `src/docmost_mcp_remote/tools/views.py` | New: resources and `open_*` tools |
 | `src/docmost_mcp_remote/server.py` | Call `views.register` behind the flag; conditional sentence in `INSTRUCTIONS` |
-| `src/docmost_mcp_remote/tools/write.py`, `tools/history.py` | Optional `app` argument on four tools (Phase 2). Optional `base_hash` on `replace_page_json` (Phase 3) |
-| `src/docmost_mcp_remote/tools/read.py` | `document_hash` in `get_page(format="json")` results (Phase 3) |
-| `frontend/editor/*`, `src/docmost_mcp_remote/apps/vendor/*` | New in Phase 3: editor source, lockfile, `docmost.pin`, `scripts/fetch-docmost.sh`, tests; committed bundle, `editor.schema.json`, licence files (AGPL-3.0) |
-| `docs/adr/0008-agpl-editor-in-fork.md`, `docs/RELEASING.md` | New ADR; upgrade rule for the Docmost pin (Phase 3) |
-| `.github/workflows/ci.yml`, `.github/workflows/osh-image.yml` | New `frontend` job (Phase 3) |
-| `.dockerignore`, `.gitignore` | Exclude `frontend/` from the image and `node_modules` from git (Phase 3) |
+| `src/docmost_mcp_remote/tools/write.py`, `tools/history.py` | Optional `app` argument on four tools (Phase 2). Optional `base_hash` on `replace_page_json` (Phase 3B) |
+| `src/docmost_mcp_remote/tools/read.py` | `document_hash` in `get_page(format="json")` results (Phase 3B) |
+| `src/docmost_mcp_remote/db/embed_store.py`, new Alembic migration, `db/schema.py` | Phase 3A: single-use sign-in codes |
+| `src/docmost_mcp_remote/web/embed.py`, `server.py` | Phase 3A: `POST /embed/redeem` route |
+| `src/docmost_mcp_remote/members.py` | Phase 3A: a public method that returns a member's Docmost token for redemption |
+| `docs/adr/0008-embedded-docmost-editor.md` | Phase 3A: decision, sign-in handoff, trust boundary |
+| `osh-labs/SEM-docmost` (other repository) | Phase 3A: environment settings, `embed-login` endpoint, partitioned cookie, embed client route |
+| `frontend/editor/*`, `src/docmost_mcp_remote/apps/vendor/*` | New in Phase 3B only: editor source, lockfile, `docmost.pin`, `scripts/fetch-docmost.sh`, tests; committed bundle, `editor.schema.json`, licence files (AGPL-3.0) |
+| `docs/adr/0009-agpl-editor-in-fork.md`, `docs/RELEASING.md` | Phase 3B only: ADR; upgrade rule for the Docmost pin |
+| `.github/workflows/ci.yml`, `.github/workflows/osh-image.yml` | New `frontend` job (Phase 3B) |
+| `.dockerignore`, `.gitignore` | Exclude `frontend/` from the image and `node_modules` from git (Phase 3B) |
 | `tests/harness.py` | Raw tool and resource meta helpers; flag in `make_settings` |
-| `tests/test_view_tools.py` (new) | Tool meta, MIME type, resource meta, scope hiding, fallback text, HTML lint, size limit (under 200 KB per view; 1.5 MB for the Phase 3 page view) |
+| `tests/test_view_tools.py` (new) | Tool meta, MIME type, resource meta, scope hiding, fallback text, HTML lint, size limit (under 200 KB per view; 1.5 MB for the page view when it includes the Phase 3B editor) |
 | `tests/test_read_tools.py`, `tests/test_resources_prompts.py` | Exact lists unchanged with the flag off; a second expected list with the flag on |
 | `README.md`, `README.ru.md` | New "Interactive views" section, tool table rows and tool count, client notes, flags |
 | `docs/security-model.md`, `docs/DESIGN.md`, `docs/adr/0007-*.md`, `CHANGELOG.md` | Trust boundary, design notes, ADR, `[Unreleased]` entry |
-| `NOTICE` | Phase 3: correct the "no code from Docmost" sentence; name the projects in the editor bundle |
-| `pyproject.toml` | Phase 3: licence expression and `license-files` |
+| `NOTICE` | Phase 3B only: correct the "no code from Docmost" sentence; name the projects in the editor bundle |
+| `pyproject.toml` | Phase 3B only: licence expression and `license-files` |
 | `pyproject.toml`, `uv.lock` | Dependencies change only if a FastMCP bump is needed |
 
 Reuse as is: `as_member` and `page_link` (`tools/common.py`), `SpacePolicy`
@@ -425,7 +584,20 @@ Tests that assert exact lists and will fail if the flag-off behaviour changes:
    that the approval prompt still appears for the write.
 6. Docker: `docker build` and the compose smoke test; confirm the `apps/` assets are in the
    image.
-7. Phase 3 editor:
+7. Phase 3A, embedded editor:
+   - pytest: `editor_session` returns a code only for a page the member can read; a code
+     redeems once; it is refused when expired, reused, with a wrong verifier, with a
+     wrong or missing shared secret, or after the grant is revoked; nothing about codes
+     or tokens appears in logs; the page resource carries `frameDomains` and `domain`.
+   - Docmost fork: tests for `embed-login` (bad code, replay, wrong origin) and for the
+     cookie attributes; the frame headers list exactly the two allowed origins.
+   - Real host: the availability probe; then open a page in the side panel, edit text,
+     add an image and a comment, navigate to another page and confirm Claude's context
+     follows; ask Claude to append to the open page and confirm the editor shows it
+     without a reload; type while Claude replaces a section and record what happens;
+     click an external link and confirm it opens through Claude's link dialog.
+   - Parity review against the table in Phase 3; record each gap in the ADR.
+8. Phase 3B, bundled editor (only if built):
    - `node --test` in `frontend/editor/`: fixture documents that cover every type in
      `editor.schema.json` pass the schema gate; a document with an unknown type fails it;
      no node view reaches the `@tiptap/react` stub.
@@ -452,9 +624,12 @@ Tests that assert exact lists and will fail if the flag-off behaviour changes:
   explicit go.
 - Changes to `web/`, `oauth.py`, `auth.py`, `tools/write.py` and `db/` get extra review
   (`CONTRIBUTING.md`). This plan touches `tools/write.py` to pass the optional `app`
-  argument (Phase 2) and to add the optional `base_hash` check (Phase 3).
-- Phase 3 adds the project's first npm dependencies, a committed build output and
-  AGPL-3.0 code. Record that in ADR 0008, with the reason (WYSIWYG requirement on Docmost's
+  argument (Phase 2) and to add the optional `base_hash` check (Phase 3B).
+- Phase 3A spans two repositories. Land the Docmost fork changes and the connector changes
+  together; the feature stays off until `INTERACTIVE_EDITING=true` and both sides are
+  configured.
+- Phase 3B, if built, adds the project's first npm dependencies, a committed build output
+  and AGPL-3.0 code. Record that in ADR 0009, with the reason (WYSIWYG requirement on Docmost's
   editor) and the controls (commit pin, lockfile, audit, rebuild-and-diff in CI, licence
   files).
 - No pull request unless the maintainer asks for one.
@@ -560,6 +735,9 @@ def browser_view() -> str:
 - Tiptap: https://github.com/ueberdosis/tiptap
 - Docmost licence (core AGPL-3.0): https://github.com/docmost/docmost and
   https://docmost.com/docs/editions
-- Editor package source pin: https://github.com/osh-labs/SEM-docmost
+- Docmost fork (embed work package and editor package pin):
+  https://github.com/osh-labs/SEM-docmost
+- Claude embedded sites: `/docs/connectors/building/mcp-apps/embedded-sites` (see the
+  Claude docs index above)
 - Docmost's server extension list:
   https://github.com/docmost/docmost/blob/main/apps/server/src/collaboration/collaboration.util.ts
