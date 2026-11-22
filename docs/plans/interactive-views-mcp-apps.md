@@ -29,7 +29,8 @@ Claude.
 | Writes from the UI | Read-only first. UI writes only in Phase 3, behind its own flag and a separate go decision |
 | Target | Upstream-ready: feature flag default off, ADR, `README.ru.md` mirrored, no deployment-specific choices |
 | Spike | None. No separate real-host test before building (see section 6) |
-| Frontend tooling | None. Hand-written vanilla JS, inlined into one HTML string per view. No bundler, no CDN, no npm dependency |
+| Phase 3 editor | WYSIWYG is a requirement. Section-by-section Markdown editing is not acceptable as the Phase 3 editor |
+| Frontend tooling | Phases 1 and 2: none. Hand-written vanilla JS, inlined into one HTML string per view. Phase 3 adds a pinned npm build for the editor bundle only (section 5, Phase 3). No CDN in any phase |
 
 ## 3. Constraints from research
 
@@ -63,7 +64,10 @@ src/docmost_mcp_remote/apps/
   browser.html/.js   wiki browser view
   review.html/.js    change-review view
   page.html/.js      co-editing page view (Phase 3)
+  vendor/editor.bundle.js      built WYSIWYG editor bundle, committed (Phase 3)
+  vendor/editor.licenses.txt   licence texts of everything in the bundle (Phase 3)
 src/docmost_mcp_remote/tools/views.py   register(mcp, settings, members): ui:// resources and open_* tools
+frontend/editor/     source of the editor bundle: package.json, package-lock.json, build script, tests (Phase 3)
 ```
 
 - Load assets at import time with `importlib.resources.files(...)`, the pattern in
@@ -111,7 +115,8 @@ These go into `docs/security-model.md` as a new trust boundary (the view iframe)
 
 1. DOM text APIs only. A pytest lints each assembled view for `innerHTML`, `outerHTML`,
    `insertAdjacentHTML`, `document.write`, `eval(`, `new Function`, and any `http://` or
-   `https://` URL.
+   `https://` URL. The lint covers first-party code. The Phase 3 vendor bundle is excluded
+   from the lint and covered by the rules in Phase 3, "Editor security".
 2. `unwrap()` strips the envelope for display only. Wiki text never goes into `ui/message`
    or `ui/update-model-context`. Those carry fixed template strings plus server-generated
    ids. Claude re-reads content through the normal wrapped tools.
@@ -191,19 +196,123 @@ Browser:
   another member changes the page.
 - Supersession: the server adds `{created_at, seq}` to `open_page` results. Views announce
   it on a `BroadcastChannel`; only the newest instance polls and updates model context.
-- Context sharing: `ui/update-model-context` with `{page_id, section_index, section_hash}`,
-  so "rewrite this section" resolves without wiki text passing through the view.
-- User edits are per section, in Markdown: `get_section` fills a textarea; "Preview" calls
-  `replace_section(dry_run=true)` and renders the diff with the Phase 2 code. Section
-  editing is disabled when the page reports `markdown_loses`.
-- Save path: the view calls `replace_section` with the `section_hash` it loaded. Existing
-  safeguards apply: a hash mismatch refuses the write when the section changed meanwhile, a
-  snapshot is taken first, and the read-back check runs. This needs scope `write` and
-  `INTERACTIVE_EDITING=true`. Otherwise the Save button uses the Phase 2 "Apply"
-  `ui/message` path.
-- Out of scope: WYSIWYG editing (needs TipTap and a bundler), images, comments, embedding
-  the Docmost site itself (`frameDomains`; needs header and cookie changes in Docmost), and
-  app tools.
+- Context sharing: `ui/update-model-context` carries
+  `{page_id, heading_index, unsaved_changes}`, so "rewrite this section" resolves without
+  wiki text passing through the view. `heading_index` is the ordinal of the nearest
+  heading before the cursor; Claude resolves it with `get_page_outline`. When
+  `unsaved_changes` is true the fixed context text tells Claude to ask the user to save
+  before it changes the page.
+
+#### WYSIWYG editor (requirement)
+
+The editor works on the page's ProseMirror JSON, the same document that
+`get_page(format="json")` returns and `replace_page_json` writes. Markdown is not involved,
+so the `markdown_loses` problem does not arise.
+
+Editor stack:
+
+- Tiptap core and open-source extensions (MIT) on ProseMirror (MIT), used without a
+  framework. No Tiptap Pro extension.
+- Do not use Docmost's own editor extension package. Docmost's core is AGPL-3.0 and this
+  project is Apache-2.0 (`docs/adr/0006-apache-2-license.md`). The licence of that package
+  was not confirmed; treat it as AGPL unless its `package.json` says otherwise.
+- The schema is written in this repository. Node and mark names come from `NODE_SCHEMA` and
+  `MARK_TYPES` in `docmost/documents.py`, so the document stays valid for `check_document`.
+
+Editable in the first version:
+
+| Kind | Types |
+|---|---|
+| Blocks | `paragraph`, `heading`, `bulletList`, `orderedList`, `listItem`, `taskList`, `taskItem`, `blockquote`, `codeBlock`, `horizontalRule`, `table`, `tableRow`, `tableHeader`, `tableCell`, `callout` |
+| Inline | `text`, `hardBreak` |
+| Marks | `bold`, `italic`, `strike`, `underline`, `code`, `link`, `highlight`, `superscript`, `subscript` |
+
+Everything else stays in the document but is not editable (lossless pass-through):
+
+- Before the document is loaded, a pure function replaces every node whose type is not in
+  the table with an atom node `opaqueBlock` or `opaqueInline` that stores the original node
+  JSON in one attribute. It renders as a labelled placeholder ("Diagram", "Image",
+  "Mention", "Columns" and so on, with "edit in Docmost"). The user can move or delete it,
+  not edit it. Before saving, the reverse function restores the original JSON.
+- The same functions move attributes that the schema does not declare (on known nodes and
+  marks) into one declared pass-through attribute, and restore them on save. Unknown marks
+  (`textStyle`, `comment`) are kept the same way.
+- Round-trip gate: after load, the view runs transform, editor, `getJSON`, reverse
+  transform, and compares the result with the original document. If they differ, the page
+  opens read-only with a message, and nothing can be saved from the view. This is the guard
+  against silent data loss when Docmost adds a node type or attribute.
+
+Build and delivery:
+
+- Source in `frontend/editor/` with exact-version `package.json` and `package-lock.json`.
+  `npm run build` runs esbuild and writes one minified IIFE,
+  `src/docmost_mcp_remote/apps/vendor/editor.bundle.js`, plus `editor.licenses.txt`.
+- The built bundle is committed. `uv build`, the Dockerfile and `pip install` from git keep
+  working without Node.
+- The bundle exposes one global factory, `DocmostEditor.create(element, document, options)`
+  with `getDocument()`, `isDirty()`, `setEditable()`, `onChange`, `onSelection`. `page.js`
+  stays hand-written and uses the bridge from Phase 1.
+- `build_view("page")` inlines the bundle. Expected size 400 to 600 KB minified
+  (unmeasured estimate); the size test for this one view allows 1 MB.
+- New CI job `frontend` (Node LTS pinned by major version): `npm ci`,
+  `npm audit --audit-level=high`, `node --test`, `npm run build`, then `git diff
+  --exit-code` on the bundle so the committed file always matches its source.
+- `NOTICE` names the bundled projects.
+
+Loading and saving:
+
+- Load: the view calls `get_page(format="json")`. The result gains one new field,
+  `document_hash` (SHA-256 of the canonical JSON, first 16 hex characters, the convention
+  of `section_hash`).
+- Save: explicit Save button and Ctrl+S or Cmd+S. No autosave in the first version, because
+  every save replaces the whole body and stores a snapshot.
+- The view calls `replace_page_json` with a new optional argument `base_hash`. When it is
+  given, the server reads the current document first and refuses the write if its hash
+  differs ("The page changed since you opened it"). Without the argument the tool behaves as
+  today. All existing safeguards stay in force: `check_document`, `check_not_busy`
+  (`tools/write.py:102`), the snapshot, and the read-back comparison in `write_document`.
+- Save needs scope `write`, `you_can_edit`, and `INTERACTIVE_EDITING=true`. Otherwise the
+  editor opens read-only.
+- Before Save, "Review changes" calls `replace_page_json(dry_run=true)` and shows the diff
+  with the Phase 2 code.
+
+Working alongside Claude:
+
+- The view polls `page_status`. When the page changed and the editor has no unsaved
+  changes, it reloads the document and keeps the scroll position.
+- When the page changed and the editor has unsaved changes, it shows a banner with two
+  choices: reload and discard my changes, or keep editing. In the second case Save stays
+  refused by `base_hash` until the user reloads. There is no three-way merge in the first
+  version.
+- Claude's own edits go through the existing tools as the same Docmost member, so
+  `check_not_busy` does not block them.
+
+Editor security:
+
+- The document is loaded as JSON only. The view never passes an HTML string to the editor.
+- Link marks: `http`, `https` and `mailto` only when rendered; a click goes through
+  `ui/open-link`; the stored `href` is kept unchanged for the round trip.
+- Paste goes through ProseMirror's schema parser, so only nodes and marks in the table can
+  enter. No image node is rendered, so no remote resource is requested.
+- The iframe CSP stays the default: no external origin, no `eval`.
+
+Unverified, to check during implementation:
+
+- Whether a result above about 150,000 characters reaches a view when the view itself calls
+  the tool. Claude's documented limit concerns results written to a file when code execution
+  is active. Until checked, a page whose JSON is larger opens read-only with a message.
+- The exact attribute names Docmost uses on `callout`, `table` cells and `taskItem`; read
+  them from a live document through `get_page(format="json")` and the integration fixtures.
+
+Out of scope for Phase 3:
+
+- Real-time collaboration through Docmost's collaboration server (needs a `connectDomains`
+  entry for the Docmost origin, a collaboration token, and Docmost's own editor schema).
+- Editing of images, diagrams, embeds, math, mentions, columns, details, tabs, footnotes
+  and transclusions. They are kept and shown as placeholders.
+- Comments, slash menu, drag handles, autosave, three-way merge.
+- Embedding the Docmost site itself (`frameDomains`; needs header and cookie changes in
+  Docmost), and app tools.
 
 ## 6. Why there is no spike
 
@@ -228,13 +337,18 @@ and the resource meta, and turning the flag off restores 1.2.3 behaviour.
 | `src/docmost_mcp_remote/apps/*` | New: assets and `build_view` |
 | `src/docmost_mcp_remote/tools/views.py` | New: resources and `open_*` tools |
 | `src/docmost_mcp_remote/server.py` | Call `views.register` behind the flag; conditional sentence in `INSTRUCTIONS` |
-| `src/docmost_mcp_remote/tools/write.py`, `tools/history.py` | Optional `app` argument on four tools (Phase 2) |
+| `src/docmost_mcp_remote/tools/write.py`, `tools/history.py` | Optional `app` argument on four tools (Phase 2). Optional `base_hash` on `replace_page_json` (Phase 3) |
+| `src/docmost_mcp_remote/tools/read.py` | `document_hash` in `get_page(format="json")` results (Phase 3) |
+| `frontend/editor/*`, `src/docmost_mcp_remote/apps/vendor/*` | New in Phase 3: editor source, lockfile, tests; committed bundle and licence file |
+| `.github/workflows/ci.yml`, `.github/workflows/osh-image.yml` | New `frontend` job (Phase 3) |
+| `.dockerignore`, `.gitignore` | Exclude `frontend/` from the image and `node_modules` from git (Phase 3) |
 | `tests/harness.py` | Raw tool and resource meta helpers; flag in `make_settings` |
 | `tests/test_view_tools.py` (new) | Tool meta, MIME type, resource meta, scope hiding, fallback text, HTML lint, size limit (under 200 KB per view) |
 | `tests/test_read_tools.py`, `tests/test_resources_prompts.py` | Exact lists unchanged with the flag off; a second expected list with the flag on |
 | `README.md`, `README.ru.md` | New "Interactive views" section, tool table rows and tool count, client notes, flags |
 | `docs/security-model.md`, `docs/DESIGN.md`, `docs/adr/0007-*.md`, `CHANGELOG.md` | Trust boundary, design notes, ADR, `[Unreleased]` entry |
-| `pyproject.toml`, `uv.lock`, `NOTICE` | Only if a FastMCP bump or the vendored-SDK contingency is needed |
+| `NOTICE` | Phase 3: name the projects in the editor bundle |
+| `pyproject.toml`, `uv.lock` | Only if a FastMCP bump is needed |
 
 Reuse as is: `as_member` and `page_link` (`tools/common.py`), `SpacePolicy`
 (`tools/spaces.py`), `NOTICE` and `wrap` (`tools/untrusted.py`), `require_scopes`,
@@ -266,14 +380,33 @@ Tests that assert exact lists and will fail if the flag-off behaviour changes:
    that the approval prompt still appears for the write.
 6. Docker: `docker build` and the compose smoke test; confirm the `apps/` assets are in the
    image.
+7. Phase 3 editor:
+   - `node --test` in `frontend/editor/`: the transform and its reverse are lossless on
+     fixture documents that contain every type in `NODE_SCHEMA` and `MARK_TYPES`, unknown
+     types, and undeclared attributes.
+   - pytest: `replace_page_json` with a stale `base_hash` is refused and writes nothing;
+     with a current one it writes; without one it behaves as before. `get_page` JSON
+     results carry `document_hash`.
+   - Playwright on the fake host: open a fixture page, type, toggle a mark, edit a table
+     cell, save, and compare the saved document with the expected JSON; an opaque node
+     survives unchanged; a document that fails the round-trip gate opens read-only; a
+     hostile document (script-like text, `javascript:` link) runs nothing.
+   - Integration, against the Docmost versions in CI: save from the fake host, then read the
+     page back and confirm Docmost stored it unchanged.
+   - Real host: with `INTERACTIVE_EDITING=true`, edit and save a page in the side panel; ask
+     Claude to change the same page and confirm the view reloads; make an unsaved edit, let
+     Claude change the page, and confirm Save is refused.
 
 ## 9. Delivery
 
 - One commit series per phase. Phases 1 and 2 run back to back. Phase 3 starts only on an
   explicit go.
 - Changes to `web/`, `oauth.py`, `auth.py`, `tools/write.py` and `db/` get extra review
-  (`CONTRIBUTING.md`). This plan touches `tools/write.py` only to pass the optional `app`
-  argument.
+  (`CONTRIBUTING.md`). This plan touches `tools/write.py` to pass the optional `app`
+  argument (Phase 2) and to add the optional `base_hash` check (Phase 3).
+- Phase 3 adds the project's first npm dependencies and a committed build output. Record
+  that in the ADR, with the reason (WYSIWYG requirement) and the controls (lockfile, audit,
+  rebuild-and-diff in CI, licence file).
 - No pull request unless the maintainer asks for one.
 
 ## Appendix A: reference facts for the implementer
@@ -374,3 +507,7 @@ def browser_view() -> str:
   `troubleshooting`; plus `/docs/connectors/building/testing`)
 - Launch post: https://claude.com/blog/interactive-connectors-full-tool
 - FastMCP apps docs: https://gofastmcp.com/docs/apps/overview
+- Tiptap (MIT core and open-source extensions; Pro extensions are separate):
+  https://github.com/ueberdosis/tiptap and https://tiptap.dev/extensions
+- Docmost licence (core AGPL-3.0): https://github.com/docmost/docmost and
+  https://docmost.com/docs/editions
