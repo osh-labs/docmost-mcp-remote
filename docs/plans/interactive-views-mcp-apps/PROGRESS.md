@@ -15,7 +15,7 @@ Only the orchestrator edits this file. Status values: todo, dispatched, merged, 
 | S2 | Feature flag and test harness helpers | 1 | none | sonnet | R0 | merged | claude/laughing-gauss-gxcpu9--S2 | 1d00c1a | 1d00c1a | tests/test_config.py -> 18 passed |
 | S3 | ADR 0007, security model and design notes | 1 | none | sonnet | R0 | merged | claude/laughing-gauss-gxcpu9--S3 | 75117cb | 75117cb | docs only; ruff format --check: 1 file unformatted (PLAN.md code block, pre-existing, not S3) |
 | S4 | Views module, ui:// resources, open_wiki, server wiring | 2 | S1, S2 | opus | R2 | verified | claude/laughing-gauss-gxcpu9--S4 | 4862385 | 4862385 | 4 passed, 30 skipped (8 of 10 contract tests in test_view_tools.py need DATABASE_TEST_URL, not yet run); R2 (Opus): pass, no blocking |
-| S5 | Wiki browser view | 2 | S1 | opus | R2 | blocked | claude/laughing-gauss-gxcpu9--S5 | 5e2c8d7 | 5e2c8d7 | test_browser_view.py + test_apps.py -> 26 passed; R2 (Opus): BLOCKING, late open_wiki result discarded after 1.5 s fallback (browser.js:1006-1008, 1058-1060); fix sent to S5 agent |
+| S5 | Wiki browser view | 2 | S1 | opus | R2 | merged | claude/laughing-gauss-gxcpu9--S5 | 3b151b3 | 3b151b3 | test_browser_view.py + test_apps.py -> 28 passed after fix 1c5e38d; R2 re-review of the fix running |
 | S6 | Change-review view (with version-history mode) | 2 | S1 | opus | R1 | verified | claude/laughing-gauss-gxcpu9--S6 | 4f96314 | 4f96314 | test_review_view.py + test_apps.py -> 29 passed; R1 (Sonnet): pass, no blocking |
 | S7 | Review app on write and history tools, open_page_history | 3 | S4, S6 | opus | R2 | dispatched | claude/laughing-gauss-gxcpu9--S7 | | | |
 | S8 | READMEs and changelog | 3 | S4 | sonnet | R0 | merged | claude/laughing-gauss-gxcpu9--S8 | 09f93e8 | 09f93e8 | tests/test_release_metadata.py -> 5 passed |
@@ -30,7 +30,7 @@ Merge S7 and S8 as they report, record the S5 R2 verdict, run the S7 contract te
 
 ## Blocked
 
-- S5: R2 blocking issue, browser.js late `open_wiki` result discarded after the 1.5 s fallback. Fix requested from the S5 agent; re-merge and re-run `tests/test_browser_view.py tests/test_apps.py`, then re-review.
+None. (S5 R2 blocker fixed in 1c5e38d and merged at 3b151b3; re-review of the fix running.)
 
 ## Deferred
 
