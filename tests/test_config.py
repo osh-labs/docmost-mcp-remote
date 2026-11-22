@@ -92,3 +92,16 @@ def test_allowed_spaces() -> None:
         "general",
         "01a17251",
     }
+
+
+def test_interactive_views_default_off() -> None:
+    assert make_settings().interactive_views is False
+
+
+def test_interactive_views_from_environment(monkeypatch: pytest.MonkeyPatch) -> None:
+    for name, value in REQUIRED.items():
+        monkeypatch.setenv(name, value)
+    monkeypatch.setenv("INTERACTIVE_VIEWS", "true")
+
+    assert Settings().interactive_views is True
+    assert make_settings(interactive_views=True).interactive_views is True
