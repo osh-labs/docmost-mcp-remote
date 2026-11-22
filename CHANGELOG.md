@@ -7,6 +7,20 @@ when upgrading lists it under "Upgrade notes".
 
 ## [Unreleased]
 
+### Fixed
+
+- Docmost 0.98 lists only active members unless asked for all of them, so
+  `list_workspace_members` and every lookup of a person by email or name stopped
+  finding deactivated members, and `activate_member` could not find the person it
+  should activate. The server now asks for all members, as earlier releases
+  returned them, and skips removed people.
+
+### Changed
+
+- Docmost 0.98.0 is added to the tested range and to the CI matrix.
+- Locked `dnspython` 2.9.2 and `opentelemetry-api` 1.45.2, which fix
+  CVE-2026-128089 and CVE-2026-126360.
+
 ### Security
 
 - Members no longer act as each other in Docmost. The client shared by all
