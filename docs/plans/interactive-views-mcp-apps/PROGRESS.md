@@ -15,10 +15,10 @@ Only the orchestrator edits this file. Status values: todo, dispatched, merged, 
 | S2 | Feature flag and test harness helpers | 1 | none | sonnet | R0 | merged | claude/laughing-gauss-gxcpu9--S2 | 1d00c1a | 1d00c1a | tests/test_config.py -> 18 passed |
 | S3 | ADR 0007, security model and design notes | 1 | none | sonnet | R0 | merged | claude/laughing-gauss-gxcpu9--S3 | 75117cb | 75117cb | docs only; ruff format --check: 1 file unformatted (PLAN.md code block, pre-existing, not S3) |
 | S4 | Views module, ui:// resources, open_wiki, server wiring | 2 | S1, S2 | opus | R2 | verified | claude/laughing-gauss-gxcpu9--S4 | 4862385 | 4862385 | 4 passed, 30 skipped (8 of 10 contract tests in test_view_tools.py need DATABASE_TEST_URL, not yet run); R2 (Opus): pass, no blocking |
-| S5 | Wiki browser view | 2 | S1 | opus | R2 | merged | claude/laughing-gauss-gxcpu9--S5 | 5e2c8d7 | 5e2c8d7 | test_browser_view.py + test_apps.py -> 26 passed; R2 review running |
+| S5 | Wiki browser view | 2 | S1 | opus | R2 | blocked | claude/laughing-gauss-gxcpu9--S5 | 5e2c8d7 | 5e2c8d7 | test_browser_view.py + test_apps.py -> 26 passed; R2 (Opus): BLOCKING, late open_wiki result discarded after 1.5 s fallback (browser.js:1006-1008, 1058-1060); fix sent to S5 agent |
 | S6 | Change-review view (with version-history mode) | 2 | S1 | opus | R1 | verified | claude/laughing-gauss-gxcpu9--S6 | 4f96314 | 4f96314 | test_review_view.py + test_apps.py -> 29 passed; R1 (Sonnet): pass, no blocking |
 | S7 | Review app on write and history tools, open_page_history | 3 | S4, S6 | opus | R2 | dispatched | claude/laughing-gauss-gxcpu9--S7 | | | |
-| S8 | READMEs and changelog | 3 | S4 | sonnet | R0 | dispatched | claude/laughing-gauss-gxcpu9--S8 | | | |
+| S8 | READMEs and changelog | 3 | S4 | sonnet | R0 | merged | claude/laughing-gauss-gxcpu9--S8 | 09f93e8 | 09f93e8 | tests/test_release_metadata.py -> 5 passed |
 
 ## Current wave
 
@@ -30,10 +30,11 @@ Merge S7 and S8 as they report, record the S5 R2 verdict, run the S7 contract te
 
 ## Blocked
 
-None.
+- S5: R2 blocking issue, browser.js late `open_wiki` result discarded after the 1.5 s fallback. Fix requested from the S5 agent; re-merge and re-run `tests/test_browser_view.py tests/test_apps.py`, then re-review.
 
 ## Deferred
 
+- S8 check after S7 merges: README `open_page_history` signature and tool counts (S8 wrote them from the plan; S7 had not merged). Also S5 R2 nit: `safeHref`/`openLink` accept `http:` per I3 (S5 reviewer expected https only); decide whether I3 should tighten.
 - S4 R2 non-blocking nits: (1) `views.py:110` `space_id` not checked for existence when ALLOWED_SPACES is unset. (2) `views.py:110-123` `selected.space_id` can mismatch the page's space. (3) with ALLOWED_SPACES set, spaces may be listed up to 3 times per call; reuse `allowed_ids`. (4) `test_token_without_read_sees_no_views` does not assert a direct `read_resource` or `call` is refused.
 - S1 R2 non-blocking nits, for the integrator or a follow-up (priority 1 and 6 before the PR): (1) `dom.js:38` `el` accepts any tag, e.g. script/iframe/object/embed/style/link/meta; refuse them. (2) `__init__.py:68` lint is a case-sensitive substring search; note the limit in the security doc. (3) `dom.js:86` truncated hunk adds an extra empty context line. (4) `dom.js:9` `unwrap` restores only the lowercase escape. (5) `bridge.js:73` host style variables applied unchecked. (6) `bridge.js` `hostContext()` returns the internal object; copy or freeze. (7) `safeHref` keeps `user:pass@`. (8) no tests for bridge message checks or `el` attribute rejection.
 - Integrator: `ruff format --check .` flags a Python code block in `docs/plans/interactive-views-mcp-apps/PLAN.md` (line 60, from the planner commit 19e9ab7). Plain `ruff format .` rewrites that file (S2 agent saw this and reverted it); slices must not commit it. Fix or exclude before the PR so CI passes.
