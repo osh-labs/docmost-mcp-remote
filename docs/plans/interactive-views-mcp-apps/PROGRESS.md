@@ -16,7 +16,7 @@ Only the orchestrator edits this file. Status values: todo, dispatched, merged, 
 | S3 | ADR 0007, security model and design notes | 1 | none | sonnet | R0 | merged | claude/laughing-gauss-gxcpu9--S3 | 75117cb | 75117cb | docs only; ruff format --check: 1 file unformatted (PLAN.md code block, pre-existing, not S3) |
 | S4 | Views module, ui:// resources, open_wiki, server wiring | 2 | S1, S2 | opus | R2 | merged | claude/laughing-gauss-gxcpu9--S4 | 4862385 | 4862385 | 4 passed, 30 skipped (8 of 10 contract tests in test_view_tools.py need DATABASE_TEST_URL, not yet run); R2 review running |
 | S5 | Wiki browser view | 2 | S1 | opus | R2 | dispatched | claude/laughing-gauss-gxcpu9--S5 | | | |
-| S6 | Change-review view (with version-history mode) | 2 | S1 | opus | R1 | dispatched | claude/laughing-gauss-gxcpu9--S6 | | | |
+| S6 | Change-review view (with version-history mode) | 2 | S1 | opus | R1 | merged | claude/laughing-gauss-gxcpu9--S6 | 4f96314 | 4f96314 | test_review_view.py + test_apps.py -> 29 passed; R1 review running |
 | S7 | Review app on write and history tools, open_page_history | 3 | S4, S6 | opus | R2 | todo | | | | |
 | S8 | READMEs and changelog | 3 | S4 | sonnet | R0 | todo | | | | |
 
