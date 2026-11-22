@@ -27,9 +27,10 @@ Claude.
 |---|---|
 | Views | Wiki browser, change review, co-editing page view |
 | Writes from the UI | Read-only first. UI writes only in Phase 3, behind its own flag and a separate go decision |
-| Target | Upstream-ready: feature flag default off, ADR, `README.ru.md` mirrored, no deployment-specific choices |
+| Target | Phases 1 and 2 are upstream-ready: feature flag default off, ADR, `README.ru.md` mirrored, no deployment-specific choices. Phase 3 is fork-only, because it contains AGPL-3.0 code and upstream is Apache-2.0 |
 | Spike | None. No separate real-host test before building (see section 6) |
-| Phase 3 editor | WYSIWYG is a requirement. Section-by-section Markdown editing is not acceptable as the Phase 3 editor |
+| Phase 3 editor | WYSIWYG is a requirement, built on Docmost's own editor package `@docmost/editor-ext`, taken from `osh-labs/SEM-docmost` at the exact commit the deployed instance runs |
+| Licence | Editor source, editor bundle and the page view are AGPL-3.0 and live in this public fork. Everything else stays Apache-2.0 |
 | Frontend tooling | Phases 1 and 2: none. Hand-written vanilla JS, inlined into one HTML string per view. Phase 3 adds a pinned npm build for the editor bundle only (section 5, Phase 3). No CDN in any phase |
 
 ## 3. Constraints from research
@@ -63,11 +64,12 @@ src/docmost_mcp_remote/apps/
   base.css           host CSS variables, transparent background, light and dark
   browser.html/.js   wiki browser view
   review.html/.js    change-review view
-  page.html/.js      co-editing page view (Phase 3)
-  vendor/editor.bundle.js      built WYSIWYG editor bundle, committed (Phase 3)
+  page.html/.js      co-editing page view (Phase 3, AGPL-3.0)
+  vendor/editor.bundle.js      built WYSIWYG editor bundle, committed (Phase 3, AGPL-3.0)
+  vendor/editor.schema.json    node and mark names of the built schema (Phase 3)
   vendor/editor.licenses.txt   licence texts of everything in the bundle (Phase 3)
 src/docmost_mcp_remote/tools/views.py   register(mcp, settings, members): ui:// resources and open_* tools
-frontend/editor/     source of the editor bundle: package.json, package-lock.json, build script, tests (Phase 3)
+frontend/editor/     source of the editor bundle: package.json, package-lock.json, docmost.pin, build and fetch scripts, tests (Phase 3, AGPL-3.0)
 ```
 
 - Load assets at import time with `importlib.resources.files(...)`, the pattern in
@@ -211,53 +213,91 @@ so the `markdown_loses` problem does not arise.
 
 Editor stack:
 
-- Tiptap core and open-source extensions (MIT) on ProseMirror (MIT), used without a
-  framework. No Tiptap Pro extension.
-- Do not use Docmost's own editor extension package. Docmost's core is AGPL-3.0 and this
-  project is Apache-2.0 (`docs/adr/0006-apache-2-license.md`). The licence of that package
-  was not confirmed; treat it as AGPL unless its `package.json` says otherwise.
-- The schema is written in this repository. Node and mark names come from `NODE_SCHEMA` and
-  `MARK_TYPES` in `docmost/documents.py`, so the document stays valid for `check_document`.
+- Tiptap on ProseMirror with Docmost's `@docmost/editor-ext`, built from source at the
+  pinned commit of `osh-labs/SEM-docmost`. Tiptap package versions are the exact versions in
+  that commit's root `package.json`.
+- The extension list is the one in `tiptapExtensions`
+  (`apps/server/src/collaboration/collaboration.util.ts`) at the pinned commit. Docmost's
+  server builds its schema from that list, so the editor schema equals the server schema
+  and every node, mark and attribute is kept by construction. `NODE_SCHEMA` in
+  `docmost/documents.py` was read from the same list (Docmost 0.97).
+- No React in the bundle. esbuild aliases `@tiptap/react` to a local stub. Every extension
+  that defines a React node view is wrapped with `.extend({ addNodeView })` to a vanilla
+  view or to its `renderHTML` output. A build-time test lists the extensions and fails if
+  any node view still reaches the stub.
 
-Editable in the first version:
+Facts about the package, checked on 2026-11-22 against upstream `docmost/docmost` main:
 
-| Kind | Types |
-|---|---|
-| Blocks | `paragraph`, `heading`, `bulletList`, `orderedList`, `listItem`, `taskList`, `taskItem`, `blockquote`, `codeBlock`, `horizontalRule`, `table`, `tableRow`, `tableHeader`, `tableCell`, `callout` |
-| Inline | `text`, `hardBreak` |
-| Marks | `bold`, `italic`, `strike`, `underline`, `code`, `link`, `highlight`, `superscript`, `subscript` |
+- It is a private workspace package (`packages/editor-ext`), not on npm (the registry
+  returns 404). Its `package.json` has no licence field, so the repository `LICENSE`
+  (AGPL-3.0) applies.
+- Upstream main is Docmost 0.98.0 with Tiptap 3.35.0. Read the versions of the pinned
+  commit from its own `package.json`; do not assume these.
+- It imports `@tiptap/react`. Some extensions call
+  `ReactNodeViewRenderer(this.options.view)` in `addNodeView` with `view` defaulting to
+  `null` (seen in `callout`). They cannot run in a browser editor unchanged.
 
-Everything else stays in the document but is not editable (lossless pass-through):
+What the user can edit:
 
-- Before the document is loaded, a pure function replaces every node whose type is not in
-  the table with an atom node `opaqueBlock` or `opaqueInline` that stores the original node
-  JSON in one attribute. It renders as a labelled placeholder ("Diagram", "Image",
-  "Mention", "Columns" and so on, with "edit in Docmost"). The user can move or delete it,
-  not edit it. Before saving, the reverse function restores the original JSON.
-- The same functions move attributes that the schema does not declare (on known nodes and
-  marks) into one declared pass-through attribute, and restore them on save. Unknown marks
-  (`textStyle`, `comment`) are kept the same way.
-- Round-trip gate: after load, the view runs transform, editor, `getJSON`, reverse
-  transform, and compares the result with the original document. If they differ, the page
-  opens read-only with a message, and nothing can be saved from the view. This is the guard
-  against silent data loss when Docmost adds a node type or attribute.
+| Group | Types | Behaviour |
+|---|---|---|
+| Text and structure | paragraphs, headings, lists, task lists, quotes, code blocks, tables with merged cells, callouts, details, tabs, columns, footnote text; marks, colours, highlight, alignment, indent, links | Editable |
+| Media and embeds | image, video, audio, pdf, attachment, drawio, excalidraw, embed, youtube | Shown as a labelled placeholder. Can be moved or deleted, not edited. The sandbox has no Docmost session, so files cannot load |
+| Smart inline and blocks | mention, status, date, math, subpages, transclusion, integration cards | Shown as a labelled chip or block with its text. Not editable |
+| Comment marks | `comment` | Kept, not shown |
+
+Schema gate:
+
+- After load, `Node.fromJSON(schema, document).toJSON()` must deep-equal the loaded
+  document. If it does not, the page opens read-only with a message and cannot be saved
+  from the view. This catches a pin that is older than the running Docmost.
+- "Unsaved changes" tracking starts after the editor's own first normalising transactions
+  (trailing node, unique ids), so opening a page never marks it as changed.
 
 Build and delivery:
 
 - Source in `frontend/editor/` with exact-version `package.json` and `package-lock.json`.
-  `npm run build` runs esbuild and writes one minified IIFE,
-  `src/docmost_mcp_remote/apps/vendor/editor.bundle.js`, plus `editor.licenses.txt`.
-- The built bundle is committed. `uv build`, the Dockerfile and `pip install` from git keep
+- `frontend/editor/docmost.pin` holds the repository URL and the full commit SHA of
+  `osh-labs/SEM-docmost`. `frontend/editor/scripts/fetch-docmost.sh` fetches that commit
+  into a git-ignored directory and verifies the SHA. Docmost source is not committed to
+  this repository.
+- `npm run build` runs esbuild with `@docmost/editor-ext` aliased to
+  `packages/editor-ext/src/index.ts` in that checkout. It writes one minified IIFE,
+  `src/docmost_mcp_remote/apps/vendor/editor.bundle.js`, plus `editor.licenses.txt` and
+  `editor.schema.json` (the node and mark names of the built schema).
+- The built bundle is committed, with a banner that names the licence, this repository and
+  the pinned Docmost commit. `uv build`, the Dockerfile and `pip install` from git keep
   working without Node.
 - The bundle exposes one global factory, `DocmostEditor.create(element, document, options)`
   with `getDocument()`, `isDirty()`, `setEditable()`, `onChange`, `onSelection`. `page.js`
   stays hand-written and uses the bridge from Phase 1.
-- `build_view("page")` inlines the bundle. Expected size 400 to 600 KB minified
-  (unmeasured estimate); the size test for this one view allows 1 MB.
-- New CI job `frontend` (Node LTS pinned by major version): `npm ci`,
+- `build_view("page")` inlines the bundle. The size is unmeasured. The size test for this
+  one view allows 1.5 MB; record the measured value in the ADR.
+- New CI job `frontend` (Node LTS pinned by major version): fetch the pin, `npm ci`,
   `npm audit --audit-level=high`, `node --test`, `npm run build`, then `git diff
   --exit-code` on the bundle so the committed file always matches its source.
-- `NOTICE` names the bundled projects.
+- Upgrade rule, added to `docs/RELEASING.md`: when the deployed Docmost moves to a new
+  commit, update `docmost.pin`, rebuild, and commit the new bundle in the same change.
+
+Licence (not legal advice):
+
+- AGPL-3.0 applies to `frontend/editor/**`, `src/docmost_mcp_remote/apps/vendor/**` and
+  `src/docmost_mcp_remote/apps/page.*`. Each directory gets the AGPL-3.0 text and each
+  source file an SPDX header. Use `AGPL-3.0-only` unless Docmost states "or later".
+- `NOTICE` says today "It contains no code from Docmost". Replace that sentence with an
+  accurate statement that names the Docmost-derived parts and their licence.
+- `pyproject.toml`: licence expression `Apache-2.0 AND AGPL-3.0-only`, and the AGPL text in
+  `license-files`, because the wheel and the image contain the bundle. Check
+  `tests/test_release_metadata.py` and the image licence label.
+- `README.md` and `README.ru.md` get a short licence note that explains the split.
+- Source offer: the page view has a "Source" link (through `ui/open-link`) to this
+  repository. Both this repository and `osh-labs/SEM-docmost` are public, which covers the
+  AGPL network-use clause for people who use the editor.
+- New `docs/adr/0008-agpl-editor-in-fork.md` records the decision, that it narrows
+  `docs/adr/0006-apache-2-license.md` for this fork, and that Phase 3 cannot be proposed
+  upstream.
+- Keep Phase 3 in its own commits and directories, so that Phases 1 and 2 can be offered
+  upstream without it.
 
 Loading and saving:
 
@@ -292,8 +332,8 @@ Editor security:
 - The document is loaded as JSON only. The view never passes an HTML string to the editor.
 - Link marks: `http`, `https` and `mailto` only when rendered; a click goes through
   `ui/open-link`; the stored `href` is kept unchanged for the round trip.
-- Paste goes through ProseMirror's schema parser, so only nodes and marks in the table can
-  enter. No image node is rendered, so no remote resource is requested.
+- Paste goes through ProseMirror's schema parser, so only nodes and marks of the schema
+  can enter. Media nodes render as placeholders, so no remote resource is requested.
 - The iframe CSP stays the default: no external origin, no `eval`.
 
 Unverified, to check during implementation:
@@ -301,15 +341,18 @@ Unverified, to check during implementation:
 - Whether a result above about 150,000 characters reaches a view when the view itself calls
   the tool. Claude's documented limit concerns results written to a file when code execution
   is active. Until checked, a page whose JSON is larger opens read-only with a message.
-- The exact attribute names Docmost uses on `callout`, `table` cells and `taskItem`; read
-  them from a live document through `get_page(format="json")` and the integration fixtures.
+- Which extensions define React node views at the pinned commit, and whether any extension
+  needs the browser client's code outside `packages/editor-ext`.
+- The bundle size, and whether tree-shaking removes the package's DOCX export and Markdown
+  helpers.
 
 Out of scope for Phase 3:
 
-- Real-time collaboration through Docmost's collaboration server (needs a `connectDomains`
-  entry for the Docmost origin, a collaboration token, and Docmost's own editor schema).
-- Editing of images, diagrams, embeds, math, mentions, columns, details, tabs, footnotes
-  and transclusions. They are kept and shown as placeholders.
+- Real-time collaboration through Docmost's collaboration server. The matching schema makes
+  it possible later; it still needs a `connectDomains` entry for the Docmost origin and a
+  collaboration token.
+- Editing of images, diagrams, embeds, math, mentions and transclusions. They are kept and
+  shown as placeholders.
 - Comments, slash menu, drag handles, autosave, three-way merge.
 - Embedding the Docmost site itself (`frameDomains`; needs header and cookie changes in
   Docmost), and app tools.
@@ -339,16 +382,18 @@ and the resource meta, and turning the flag off restores 1.2.3 behaviour.
 | `src/docmost_mcp_remote/server.py` | Call `views.register` behind the flag; conditional sentence in `INSTRUCTIONS` |
 | `src/docmost_mcp_remote/tools/write.py`, `tools/history.py` | Optional `app` argument on four tools (Phase 2). Optional `base_hash` on `replace_page_json` (Phase 3) |
 | `src/docmost_mcp_remote/tools/read.py` | `document_hash` in `get_page(format="json")` results (Phase 3) |
-| `frontend/editor/*`, `src/docmost_mcp_remote/apps/vendor/*` | New in Phase 3: editor source, lockfile, tests; committed bundle and licence file |
+| `frontend/editor/*`, `src/docmost_mcp_remote/apps/vendor/*` | New in Phase 3: editor source, lockfile, `docmost.pin`, `scripts/fetch-docmost.sh`, tests; committed bundle, `editor.schema.json`, licence files (AGPL-3.0) |
+| `docs/adr/0008-agpl-editor-in-fork.md`, `docs/RELEASING.md` | New ADR; upgrade rule for the Docmost pin (Phase 3) |
 | `.github/workflows/ci.yml`, `.github/workflows/osh-image.yml` | New `frontend` job (Phase 3) |
 | `.dockerignore`, `.gitignore` | Exclude `frontend/` from the image and `node_modules` from git (Phase 3) |
 | `tests/harness.py` | Raw tool and resource meta helpers; flag in `make_settings` |
-| `tests/test_view_tools.py` (new) | Tool meta, MIME type, resource meta, scope hiding, fallback text, HTML lint, size limit (under 200 KB per view) |
+| `tests/test_view_tools.py` (new) | Tool meta, MIME type, resource meta, scope hiding, fallback text, HTML lint, size limit (under 200 KB per view; 1.5 MB for the Phase 3 page view) |
 | `tests/test_read_tools.py`, `tests/test_resources_prompts.py` | Exact lists unchanged with the flag off; a second expected list with the flag on |
 | `README.md`, `README.ru.md` | New "Interactive views" section, tool table rows and tool count, client notes, flags |
 | `docs/security-model.md`, `docs/DESIGN.md`, `docs/adr/0007-*.md`, `CHANGELOG.md` | Trust boundary, design notes, ADR, `[Unreleased]` entry |
-| `NOTICE` | Phase 3: name the projects in the editor bundle |
-| `pyproject.toml`, `uv.lock` | Only if a FastMCP bump is needed |
+| `NOTICE` | Phase 3: correct the "no code from Docmost" sentence; name the projects in the editor bundle |
+| `pyproject.toml` | Phase 3: licence expression and `license-files` |
+| `pyproject.toml`, `uv.lock` | Dependencies change only if a FastMCP bump is needed |
 
 Reuse as is: `as_member` and `page_link` (`tools/common.py`), `SpacePolicy`
 (`tools/spaces.py`), `NOTICE` and `wrap` (`tools/untrusted.py`), `require_scopes`,
@@ -381,15 +426,19 @@ Tests that assert exact lists and will fail if the flag-off behaviour changes:
 6. Docker: `docker build` and the compose smoke test; confirm the `apps/` assets are in the
    image.
 7. Phase 3 editor:
-   - `node --test` in `frontend/editor/`: the transform and its reverse are lossless on
-     fixture documents that contain every type in `NODE_SCHEMA` and `MARK_TYPES`, unknown
-     types, and undeclared attributes.
+   - `node --test` in `frontend/editor/`: fixture documents that cover every type in
+     `editor.schema.json` pass the schema gate; a document with an unknown type fails it;
+     no node view reaches the `@tiptap/react` stub.
+   - pytest: every node and mark name in `editor.schema.json` is accepted by
+     `check_document` (`NODE_TYPES`, `MARK_TYPES` in `docmost/documents.py`). A name the
+     server would reject fails the test, because saving such a page would be refused.
    - pytest: `replace_page_json` with a stale `base_hash` is refused and writes nothing;
      with a current one it writes; without one it behaves as before. `get_page` JSON
      results carry `document_hash`.
    - Playwright on the fake host: open a fixture page, type, toggle a mark, edit a table
-     cell, save, and compare the saved document with the expected JSON; an opaque node
-     survives unchanged; a document that fails the round-trip gate opens read-only; a
+     cell, save, and compare the saved document with the expected JSON; an image, a
+     diagram and a mention survive a text edit unchanged; a document that fails the
+     schema gate opens read-only; a
      hostile document (script-like text, `javascript:` link) runs nothing.
    - Integration, against the Docmost versions in CI: save from the fake host, then read the
      page back and confirm Docmost stored it unchanged.
@@ -404,9 +453,10 @@ Tests that assert exact lists and will fail if the flag-off behaviour changes:
 - Changes to `web/`, `oauth.py`, `auth.py`, `tools/write.py` and `db/` get extra review
   (`CONTRIBUTING.md`). This plan touches `tools/write.py` to pass the optional `app`
   argument (Phase 2) and to add the optional `base_hash` check (Phase 3).
-- Phase 3 adds the project's first npm dependencies and a committed build output. Record
-  that in the ADR, with the reason (WYSIWYG requirement) and the controls (lockfile, audit,
-  rebuild-and-diff in CI, licence file).
+- Phase 3 adds the project's first npm dependencies, a committed build output and
+  AGPL-3.0 code. Record that in ADR 0008, with the reason (WYSIWYG requirement on Docmost's
+  editor) and the controls (commit pin, lockfile, audit, rebuild-and-diff in CI, licence
+  files).
 - No pull request unless the maintainer asks for one.
 
 ## Appendix A: reference facts for the implementer
@@ -507,7 +557,9 @@ def browser_view() -> str:
   `troubleshooting`; plus `/docs/connectors/building/testing`)
 - Launch post: https://claude.com/blog/interactive-connectors-full-tool
 - FastMCP apps docs: https://gofastmcp.com/docs/apps/overview
-- Tiptap (MIT core and open-source extensions; Pro extensions are separate):
-  https://github.com/ueberdosis/tiptap and https://tiptap.dev/extensions
+- Tiptap: https://github.com/ueberdosis/tiptap
 - Docmost licence (core AGPL-3.0): https://github.com/docmost/docmost and
   https://docmost.com/docs/editions
+- Editor package source pin: https://github.com/osh-labs/SEM-docmost
+- Docmost's server extension list:
+  https://github.com/docmost/docmost/blob/main/apps/server/src/collaboration/collaboration.util.ts
