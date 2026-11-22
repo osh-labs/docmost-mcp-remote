@@ -1003,8 +1003,25 @@
 
   // ---- Start ------------------------------------------------------------------------------
 
+  // Set once the open_wiki result (or its error) has been applied; it is applied only once.
+  let resultApplied = false;
+
+  function loadSpacesOnce() {
+    if (state.spaces.length === 0 && !state.spacesLoading) loadSpaces(null);
+  }
+
+  // No tool result yet (or it was cancelled): list the spaces so the browser is usable.
+  // A tool result that arrives later is still applied by initFrom.
+  function fallback() {
+    state.initialized = true;
+    if (resultApplied) return;
+    loadSpacesOnce();
+    renderAll();
+  }
+
   function initFrom(data) {
-    if (state.initialized) return;
+    if (resultApplied) return;
+    resultApplied = true;
     state.initialized = true;
     const spaces = Array.isArray(data.spaces)
       ? data.spaces.filter(function (space) {
@@ -1015,7 +1032,7 @@
       state.spaces = spaces;
       state.spacesCursor = cursorOf(data);
     } else {
-      loadSpaces(null);
+      loadSpacesOnce();
     }
     const selected = isObject(data.selected) ? data.selected : {};
     const spaceId = isId(selected.space_id) ? selected.space_id : null;
@@ -1035,16 +1052,19 @@
 
   bridge.onToolResult(function (result) {
     if (result && result.isError) {
+      if (resultApplied) return;
+      resultApplied = true;
       state.initialized = true;
       setStatus(errorText(result), true);
-      loadSpaces(null);
+      loadSpacesOnce();
+      renderAll();
       return;
     }
     initFrom(bridge.structured(result) || {});
   });
   bridge.onToolCancelled(function () {
     setStatus("The request was cancelled.", false);
-    initFrom({});
+    fallback();
   });
   bridge.onHostContext(applyLayout);
 
@@ -1055,9 +1075,7 @@
       if (status.textContent === "Loading") setStatus("", false);
       applyLayout(context || bridge.hostContext());
       // A host that sends no tool result still gets a usable browser.
-      setTimeout(function () {
-        initFrom({});
-      }, 1500);
+      setTimeout(fallback, 1500);
     },
     function () {
       setStatus("Could not connect to the host.", true);

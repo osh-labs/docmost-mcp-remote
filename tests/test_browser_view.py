@@ -284,3 +284,176 @@ def test_preview_handles_bad_content() -> None:
     out = render({"type": "doc", "content": []})
     assert out["parsed"] is True
     assert out["text"] == "This page is empty."
+
+
+# Runs the whole of browser.js against a DOM stub and a fake bridge, to check the start-up
+# order: the open_wiki result must be applied whether it comes before or after the fallback.
+_START_RUNNER = r"""
+const vm = require("vm");
+const fs = require("fs");
+const late = process.argv[3] === "late";
+class El {
+  constructor(tag) {
+    this.tagName = String(tag).toUpperCase();
+    this.children = [];
+    this.parent = null;
+    this.attributes = {};
+    this.dataset = {};
+    this.style = { setProperty() {} };
+    this.listeners = {};
+    this.hidden = false;
+    this.value = "";
+    this.tabIndex = -1;
+    this._text = null;
+  }
+  appendChild(child) {
+    if (child.parent) child.parent.children = child.parent.children.filter((c) => c !== child);
+    child.parent = this;
+    this.children.push(child);
+    return child;
+  }
+  replaceChildren(...nodes) {
+    this.children.forEach((c) => { c.parent = null; });
+    this.children = [];
+    this._text = null;
+    nodes.forEach((n) => this.appendChild(n));
+  }
+  setAttribute(key, value) {
+    this.attributes[key] = String(value);
+    if (key.startsWith("data-")) {
+      this.dataset[key.slice(5).replace(/-([a-z])/g, (m, c) => c.toUpperCase())] = String(value);
+    }
+  }
+  addEventListener(type, fn) { (this.listeners[type] = this.listeners[type] || []).push(fn); }
+  contains(node) {
+    for (let n = node; n; n = n.parent) if (n === this) return true;
+    return false;
+  }
+  querySelectorAll(selector) {
+    const name = /^\[([a-z-]+)\]$/.exec(selector)[1];
+    const out = [];
+    const walk = (n) => n.children.forEach((c) => {
+      if (name in c.attributes) out.push(c);
+      walk(c);
+    });
+    walk(this);
+    return out;
+  }
+  focus() { document.activeElement = this; }
+  get textContent() {
+    return this._text !== null ? this._text : this.children.map((c) => c.textContent).join("");
+  }
+  set textContent(value) { this.replaceChildren(); this._text = String(value); }
+}
+const app = new El("main");
+globalThis.window = globalThis;
+globalThis.innerWidth = 1000;
+globalThis.document = {
+  activeElement: null,
+  createElement: (tag) => new El(tag),
+  createTextNode(value) { const n = new El("#text"); n._text = String(value); return n; },
+  getElementById: (id) => (id === "app" ? app : null),
+};
+const timers = [];
+globalThis.setTimeout = (fn) => { timers.push(fn); return timers.length; };
+globalThis.clearTimeout = () => {};
+const runTimers = () => timers.splice(0).forEach((fn) => fn());
+const flush = () => new Promise((resolve) => setImmediate(resolve));
+
+const doc = JSON.stringify({ type: "doc", content: [] });
+const replies = {
+  list_spaces: () => ({ spaces: [{ id: "s1", name: "One" }, { id: "s2", name: "Two" }] }),
+  list_pages: () => ({ pages: [], next_cursor: null }),
+  search: () => ({ results: [{ id: "p1", title: "Page", space: { id: "s2" }, snippet: "x" }] }),
+  suggest: () => ({ pages: [] }),
+  get_page: () => ({
+    id: "p1", title: "Page", space: { id: "s2", name: "Two" }, path: [],
+    url: "https://example.com/p", content: doc, truncated: false,
+  }),
+};
+const calls = [];
+const contexts = [];
+let onResult = null;
+const ok = () => Promise.resolve({});
+globalThis.mcpBridge = {
+  start: () => Promise.resolve({ displayMode: "fullscreen", containerDimensions: { width: 1000 } }),
+  onToolInput() {},
+  onToolResult(fn) { onResult = fn; },
+  onToolCancelled() {},
+  onHostContext() {},
+  hostContext: () => ({}),
+  callTool(name, args) {
+    calls.push({ name, args });
+    return Promise.resolve({ structuredContent: replies[name](args) });
+  },
+  structured: (result) => result.structuredContent,
+  updateContext(value) { contexts.push(value); return Promise.resolve(); },
+  sendMessage: ok,
+  openLink: ok,
+  requestMode: () => Promise.resolve("fullscreen"),
+};
+vm.runInThisContext(fs.readFileSync(process.argv[1], "utf8"));
+vm.runInThisContext(fs.readFileSync(process.argv[2], "utf8"));
+
+const result = {
+  structuredContent: {
+    notice: "n",
+    spaces: [{ id: "s2", slug: "two", name: "Two" }],
+    selected: {
+      space_id: "s2",
+      page: {
+        id: "p1", slug_id: "abc", title: "Page", url: "https://example.com/p", space_id: "s2",
+      },
+      query: "x",
+    },
+  },
+};
+(async () => {
+  await flush();
+  if (late) runTimers();
+  await flush();
+  const before = calls.map((c) => c.name);
+  onResult(result);
+  await flush();
+  runTimers();
+  await flush();
+  process.stdout.write(JSON.stringify({ before, calls, contexts, text: app.textContent }));
+})();
+"""
+
+
+def start_view(order: str) -> dict[str, Any]:
+    executable = shutil.which("node")
+    assert executable is not None
+    done = subprocess.run(  # noqa: S603
+        [
+            executable,
+            "-e",
+            _START_RUNNER,
+            str(ASSETS.joinpath("dom.js")),
+            str(ASSETS.joinpath("browser.js")),
+            order,
+        ],
+        capture_output=True,
+        text=True,
+        check=True,
+        timeout=30,
+    )
+    result: dict[str, Any] = json.loads(done.stdout)
+    return result
+
+
+@node
+@pytest.mark.parametrize("order", ["early", "late"])
+def test_open_wiki_result_is_applied_before_or_after_the_fallback(order: str) -> None:
+    out = start_view(order)
+    calls = [(call["name"], call["args"]) for call in out["calls"]]
+    # The fallback lists the spaces only when no result has arrived yet.
+    assert out["before"] == (["list_spaces"] if order == "late" else [])
+    if order == "early":
+        assert "list_spaces" not in [name for name, _ in calls]
+    assert ("list_pages", {"space_id": "s2", "limit": 50}) in calls
+    assert ("get_page", {"page": "p1", "format": "json"}) in calls
+    assert ("search", {"query": "x", "limit": 20, "space_id": "s2"}) in calls
+    assert out["contexts"] == [{"page_id": "p1", "space_id": "s2"}]
+    assert "Search results" in out["text"]
