@@ -10,6 +10,7 @@ import time
 from typing import Any
 
 import httpx
+import mcp.types
 import uvicorn
 from fastmcp import Client
 from fastmcp.client.auth import BearerAuth
@@ -156,6 +157,28 @@ class RunningServer:
             return "".join(getattr(item, "text", "") for item in contents)
 
         return str(self._session(token, use))
+
+    def tool_entries(self, token: str) -> list[mcp.types.Tool]:
+        """Raw ``list_tools()`` entries, with ``.meta``."""
+
+        async def use(client: Client[Any]) -> list[mcp.types.Tool]:
+            return list(await client.list_tools())
+
+        return list(self._session(token, use))
+
+    def read_resource(self, token: str, uri: str) -> tuple[str, str | None, dict[str, Any] | None]:
+        """Text, MIME type and ``_meta`` of the first content item of a resource read."""
+
+        async def use(client: Client[Any]) -> tuple[str, str | None, dict[str, Any] | None]:
+            item = (await client.read_resource(uri))[0]
+            return (
+                getattr(item, "text", ""),
+                getattr(item, "mimeType", None),
+                getattr(item, "meta", None),
+            )
+
+        result: tuple[str, str | None, dict[str, Any] | None] = self._session(token, use)
+        return result
 
     def prompts(self, token: str) -> list[str]:
         async def use(client: Client[Any]) -> list[str]:
