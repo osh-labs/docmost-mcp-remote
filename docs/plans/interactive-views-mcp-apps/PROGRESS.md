@@ -17,16 +17,16 @@ Only the orchestrator edits this file. Status values: todo, dispatched, merged, 
 | S4 | Views module, ui:// resources, open_wiki, server wiring | 2 | S1, S2 | opus | R2 | verified | claude/laughing-gauss-gxcpu9--S4 | 4862385 | 4862385 | 4 passed, 30 skipped (8 of 10 contract tests in test_view_tools.py need DATABASE_TEST_URL, not yet run); R2 (Opus): pass, no blocking |
 | S5 | Wiki browser view | 2 | S1 | opus | R2 | verified | claude/laughing-gauss-gxcpu9--S5 | 3b151b3 | 3b151b3 | test_browser_view.py + test_apps.py -> 28 passed after fix 1c5e38d; R2 re-review (Opus): pass |
 | S6 | Change-review view (with version-history mode) | 2 | S1 | opus | R1 | verified | claude/laughing-gauss-gxcpu9--S6 | 4f96314 | 4f96314 | test_review_view.py + test_apps.py -> 29 passed; R1 (Sonnet): pass, no blocking |
-| S7 | Review app on write and history tools, open_page_history | 3 | S4, S6 | opus | R2 | merged | claude/laughing-gauss-gxcpu9--S7 | 7fae5b8 | 7fae5b8 | 3 passed, 69 skipped (all S7 tests are server-backed; none ran, need DATABASE_TEST_URL); R2 review running |
+| S7 | Review app on write and history tools, open_page_history | 3 | S4, S6 | opus | R2 | verified | claude/laughing-gauss-gxcpu9--S7 | 7fae5b8 | 7fae5b8 | 3 passed, 69 skipped (all S7 tests are server-backed; none ran, need DATABASE_TEST_URL); R2 (Opus): pass, no blocking; README signature and counts check pass |
 | S8 | READMEs and changelog | 3 | S4 | sonnet | R0 | merged | claude/laughing-gauss-gxcpu9--S8 | 09f93e8 | 09f93e8 | tests/test_release_metadata.py -> 5 passed |
 
 ## Current wave
 
-Wave 1 in progress: Wave 2 complete (S4, S6 verified; S5 merged, R2 review running). Wave 3 (S7, S8) merged; S7 R2 review running. Wave 2 contract tests (S1 test_apps.py, S4 test_view_tools.py) at 5e2c8d7: 20 passed, 8 skipped (need DATABASE_TEST_URL).
+Wave 1 in progress: Wave 2 complete (S4, S6 verified; S5 merged, R2 review running). Wave 3 complete (S7 verified, S8 merged). All slices merged. Final integration next. Wave 2 contract tests (S1 test_apps.py, S4 test_view_tools.py) at 5e2c8d7: 20 passed, 8 skipped (need DATABASE_TEST_URL).
 
 ## Next step
 
-Merge S7 and S8 as they report, record the S5 R2 verdict, run the S7 contract tests at wave end, then call the integrator for final integration (applies Deferred, full suite with DATABASE_TEST_URL).
+Final integration: integrator applies Deferred items, runs the full suite once with FULL_SUITE_OK=1 (server-backed tests skip without DATABASE_TEST_URL), then open the PR.
 
 ## Blocked
 
@@ -34,6 +34,7 @@ None. (S5 R2 blocker fixed in 1c5e38d and merged at 3b151b3; re-review of the fi
 
 ## Deferred
 
+- S7 R2 non-blocking nits: `open_page_history` fetches the page twice and returns the first 20 versions with no cursor or limit; `view_apps()` is built twice (server.py and views.register). Latency/cosmetic only; no action planned.
 - S5 R2 re-review nit: if the user picks a page or types a query during the 1.5 s fallback window, a late `open_wiki` result replaces both and calls `updateContext` a second time (ids only, no security effect). Skip `selected` and `query` when the user already chose something.
 - S8 check after S7 merges: README `open_page_history` signature and tool counts (S8 wrote them from the plan; S7 had not merged). Also S5 R2 nit: `safeHref`/`openLink` accept `http:` per I3 (S5 reviewer expected https only); decide whether I3 should tighten.
 - S4 R2 non-blocking nits: (1) `views.py:110` `space_id` not checked for existence when ALLOWED_SPACES is unset. (2) `views.py:110-123` `selected.space_id` can mismatch the page's space. (3) with ALLOWED_SPACES set, spaces may be listed up to 3 times per call; reuse `allowed_ids`. (4) `test_token_without_read_sees_no_views` does not assert a direct `read_resource` or `call` is refused.
