@@ -13,6 +13,7 @@ import uuid
 from typing import Annotated, Any
 
 from fastmcp import FastMCP
+from fastmcp.apps import AppConfig
 from fastmcp.exceptions import ToolError
 from fastmcp.server.auth import require_scopes
 from pydantic import Field
@@ -48,7 +49,12 @@ VersionRef = Annotated[
 
 
 def register(
-    mcp: FastMCP, settings: Settings, members: MemberService, snapshots: SnapshotStore
+    mcp: FastMCP,
+    settings: Settings,
+    members: MemberService,
+    snapshots: SnapshotStore,
+    *,
+    review_app: AppConfig | None = None,
 ) -> None:
     policy = SpacePolicy(settings.allowed_spaces)
     docmost_base = str(settings.docmost_url).rstrip("/")
@@ -134,6 +140,7 @@ def register(
         ),
         annotations=_READ_ONLY,
         auth=require_scopes("read"),
+        app=review_app,
     )
     async def diff_page(
         page: PageRef, from_version: VersionRef, to_version: VersionRef = CURRENT
