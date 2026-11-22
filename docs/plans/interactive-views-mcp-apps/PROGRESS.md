@@ -14,9 +14,9 @@ Only the orchestrator edits this file. Status values: todo, dispatched, merged, 
 | S1 | Apps package core: build_view, bridge, DOM helpers, CSS | 1 | none | opus | R2 | verified | claude/laughing-gauss-gxcpu9--S1 | 7c83f2e | 7c83f2e | tests/test_apps.py -> 18 passed; R2 (Opus): pass, no blocking |
 | S2 | Feature flag and test harness helpers | 1 | none | sonnet | R0 | merged | claude/laughing-gauss-gxcpu9--S2 | 1d00c1a | 1d00c1a | tests/test_config.py -> 18 passed |
 | S3 | ADR 0007, security model and design notes | 1 | none | sonnet | R0 | merged | claude/laughing-gauss-gxcpu9--S3 | 75117cb | 75117cb | docs only; ruff format --check: 1 file unformatted (PLAN.md code block, pre-existing, not S3) |
-| S4 | Views module, ui:// resources, open_wiki, server wiring | 2 | S1, S2 | opus | R2 | todo | | | | |
-| S5 | Wiki browser view | 2 | S1 | opus | R2 | todo | | | | |
-| S6 | Change-review view (with version-history mode) | 2 | S1 | opus | R1 | todo | | | | |
+| S4 | Views module, ui:// resources, open_wiki, server wiring | 2 | S1, S2 | opus | R2 | merged | claude/laughing-gauss-gxcpu9--S4 | 4862385 | 4862385 | 4 passed, 30 skipped (8 of 10 contract tests in test_view_tools.py need DATABASE_TEST_URL, not yet run); R2 review running |
+| S5 | Wiki browser view | 2 | S1 | opus | R2 | dispatched | claude/laughing-gauss-gxcpu9--S5 | | | |
+| S6 | Change-review view (with version-history mode) | 2 | S1 | opus | R1 | dispatched | claude/laughing-gauss-gxcpu9--S6 | | | |
 | S7 | Review app on write and history tools, open_page_history | 3 | S4, S6 | opus | R2 | todo | | | | |
 | S8 | READMEs and changelog | 3 | S4 | sonnet | R0 | todo | | | | |
 
