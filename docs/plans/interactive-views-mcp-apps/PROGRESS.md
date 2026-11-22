@@ -17,12 +17,12 @@ Only the orchestrator edits this file. Status values: todo, dispatched, merged, 
 | S4 | Views module, ui:// resources, open_wiki, server wiring | 2 | S1, S2 | opus | R2 | verified | claude/laughing-gauss-gxcpu9--S4 | 4862385 | 4862385 | 4 passed, 30 skipped (8 of 10 contract tests in test_view_tools.py need DATABASE_TEST_URL, not yet run); R2 (Opus): pass, no blocking |
 | S5 | Wiki browser view | 2 | S1 | opus | R2 | verified | claude/laughing-gauss-gxcpu9--S5 | 3b151b3 | 3b151b3 | test_browser_view.py + test_apps.py -> 28 passed after fix 1c5e38d; R2 re-review (Opus): pass |
 | S6 | Change-review view (with version-history mode) | 2 | S1 | opus | R1 | verified | claude/laughing-gauss-gxcpu9--S6 | 4f96314 | 4f96314 | test_review_view.py + test_apps.py -> 29 passed; R1 (Sonnet): pass, no blocking |
-| S7 | Review app on write and history tools, open_page_history | 3 | S4, S6 | opus | R2 | dispatched | claude/laughing-gauss-gxcpu9--S7 | | | |
+| S7 | Review app on write and history tools, open_page_history | 3 | S4, S6 | opus | R2 | merged | claude/laughing-gauss-gxcpu9--S7 | 7fae5b8 | 7fae5b8 | 3 passed, 69 skipped (all S7 tests are server-backed; none ran, need DATABASE_TEST_URL); R2 review running |
 | S8 | READMEs and changelog | 3 | S4 | sonnet | R0 | merged | claude/laughing-gauss-gxcpu9--S8 | 09f93e8 | 09f93e8 | tests/test_release_metadata.py -> 5 passed |
 
 ## Current wave
 
-Wave 1 in progress: Wave 2 complete (S4, S6 verified; S5 merged, R2 review running). Wave 3 (S7, S8) dispatched. Wave 2 contract tests (S1 test_apps.py, S4 test_view_tools.py) at 5e2c8d7: 20 passed, 8 skipped (need DATABASE_TEST_URL).
+Wave 1 in progress: Wave 2 complete (S4, S6 verified; S5 merged, R2 review running). Wave 3 (S7, S8) merged; S7 R2 review running. Wave 2 contract tests (S1 test_apps.py, S4 test_view_tools.py) at 5e2c8d7: 20 passed, 8 skipped (need DATABASE_TEST_URL).
 
 ## Next step
 
