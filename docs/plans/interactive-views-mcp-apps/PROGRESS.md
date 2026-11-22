@@ -12,7 +12,7 @@ Only the orchestrator edits this file. Status values: todo, dispatched, merged, 
 | ID | Title | Wave | Depends on | Model | Review tier | Status | Branch | Merge SHA | Tested SHA | Tests |
 |---|---|---|---|---|---|---|---|---|---|---|
 | S1 | Apps package core: build_view, bridge, DOM helpers, CSS | 1 | none | opus | R2 | dispatched | claude/laughing-gauss-gxcpu9--S1 | | | |
-| S2 | Feature flag and test harness helpers | 1 | none | sonnet | R0 | dispatched | claude/laughing-gauss-gxcpu9--S2 | | | |
+| S2 | Feature flag and test harness helpers | 1 | none | sonnet | R0 | merged | claude/laughing-gauss-gxcpu9--S2 | 1d00c1a | 1d00c1a | tests/test_config.py -> 18 passed |
 | S3 | ADR 0007, security model and design notes | 1 | none | sonnet | R0 | merged | claude/laughing-gauss-gxcpu9--S3 | 75117cb | 75117cb | docs only; ruff format --check: 1 file unformatted (PLAN.md code block, pre-existing, not S3) |
 | S4 | Views module, ui:// resources, open_wiki, server wiring | 2 | S1, S2 | opus | R2 | todo | | | | |
 | S5 | Wiki browser view | 2 | S1 | opus | R2 | todo | | | | |
@@ -22,7 +22,7 @@ Only the orchestrator edits this file. Status values: todo, dispatched, merged, 
 
 ## Current wave
 
-Wave 1 in progress: S3 merged; S1, S2 dispatched.
+Wave 1 in progress: S2, S3 merged; S1 dispatched.
 
 ## Next step
 
@@ -34,7 +34,7 @@ None.
 
 ## Deferred
 
-- Integrator: `ruff format --check .` flags a Python code block in `docs/plans/interactive-views-mcp-apps/PLAN.md` (line 60, from the planner commit 19e9ab7). Fix or exclude before the PR so CI passes.
+- Integrator: `ruff format --check .` flags a Python code block in `docs/plans/interactive-views-mcp-apps/PLAN.md` (line 60, from the planner commit 19e9ab7). Plain `ruff format .` rewrites that file (S2 agent saw this and reverted it); slices must not commit it. Fix or exclude before the PR so CI passes.
 - Phase 3: awaiting user go decision.
 
 ## Decisions
