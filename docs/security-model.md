@@ -39,6 +39,39 @@ vulnerabilities as described in [SECURITY.md](../SECURITY.md).
    Every call carries the member's own Docmost token.
 4. Server to Postgres: credentials from the environment.
 5. Docmost content to the model: wrapped and labelled as untrusted data.
+6. Docmost content to the view iframe (only with `INTERACTIVE_VIEWS`): see
+   "The view iframe" below.
+
+## The view iframe
+
+With `INTERACTIVE_VIEWS=true`, some tools carry `_meta.ui` and the server
+serves `ui://` HTML views that the host renders in a sandboxed iframe. The
+iframe shows untrusted wiki text and can call the connector's tools, so it is
+a trust boundary. Rules for every view:
+
+1. DOM text APIs only (`createElement`, `textContent`, `setAttribute` on safe
+   attributes). A pytest lints each assembled view for `innerHTML`,
+   `outerHTML`, `insertAdjacentHTML`, `document.write`, `eval(`,
+   `new Function`, and any `http://` or `https://` URL.
+2. The view strips the untrusted envelope for display only. Wiki text never
+   goes into `ui/message` or `ui/update-model-context`; those carry fixed
+   template strings and server-generated ids. Claude re-reads content through
+   the normal wrapped tools.
+3. Links pass through `safeHref()` (only `https:` and `http:`) and open through
+   `ui/open-link`. No images; a placeholder with the file name is shown.
+4. Views call only tools that the grant's scopes allow. Server-side
+   `require_scopes`, `SpacePolicy`, and the `ToolGuard` rate limit and audit
+   apply unchanged.
+5. `ui://` resources require the `read` scope and contain no member data.
+6. No trash, move, restore, people or admin action is ever a button in a view.
+
+Constraint behind rule 6: the server cannot tell a view call from a model
+call, Claude shows no approval prompt for a view's calls, and
+`tools/confirm.py` lets a change through when the host cannot elicit. So no
+destructive tool may become a one-click action from a view.
+
+Views declare no external origins (no `connectDomains`, `resourceDomains`,
+`frameDomains`) and load nothing from a CDN.
 
 ## Threats and mitigations
 
