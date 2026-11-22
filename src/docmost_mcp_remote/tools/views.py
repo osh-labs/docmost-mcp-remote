@@ -12,7 +12,9 @@ from typing import Annotated, Any
 
 from fastmcp import FastMCP
 from fastmcp.apps import UI_MIME_TYPE, AppConfig
+from fastmcp.exceptions import ToolError
 from fastmcp.server.auth import require_scopes
+from fastmcp.tools import FunctionTool
 from pydantic import Field
 
 from docmost_mcp_remote.apps import VIEW_NAMES, build_view, view_uri
@@ -126,5 +128,39 @@ def register(mcp: FastMCP, settings: Settings, members: MemberService) -> ViewAp
             return {"notice": NOTICE, "spaces": spaces, "selected": selected}
 
         return await as_member(members, action)
+
+    @mcp.tool(
+        name="open_page_history",
+        title="Page history",
+        description=(
+            "Open an interactive view of a page's saved versions, where the client can show "
+            "one, to compare them with diff_page. Clients that show only text get the page "
+            "and the same version list as list_page_history."
+        ),
+        annotations=_READ_ONLY,
+        auth=require_scopes("read"),
+        app=apps.review,
+    )
+    async def open_page_history(
+        page: Annotated[str, Field(description="Page id, slug id or Docmost page URL.")],
+    ) -> dict[str, Any]:
+        async def action(backend: DocmostBackend) -> dict[str, Any]:
+            target = await backend.get_page(page_ref(page))
+            await policy.check(backend, target.space_id)
+            return {
+                "id": target.id,
+                "slug_id": target.slug_id,
+                "title": target.title or "(untitled)",
+                "url": page_link(docmost_base, target),
+                "space_id": target.space_id,
+            }
+
+        found = await as_member(members, action)
+        # The listing is list_page_history's own, so both tools give the same result.
+        listing = await mcp.local_provider.get_tool("list_page_history")
+        if not isinstance(listing, FunctionTool):
+            raise ToolError("Page history is not available.")
+        history: dict[str, Any] = await listing.fn(page=found["id"], cursor=None, limit=20)
+        return {"notice": NOTICE, "page": found, "history": history}
 
     return apps

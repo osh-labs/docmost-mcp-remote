@@ -17,6 +17,7 @@ from typing import Annotated, Any, Literal
 
 import mcp_types as mt
 from fastmcp import FastMCP
+from fastmcp.apps import AppConfig
 from fastmcp.exceptions import ToolError
 from fastmcp.server.auth import require_scopes
 from pydantic import Field
@@ -266,7 +267,12 @@ def new_position(siblings: list[PageSummary], *, after_page_id: str | None, firs
 
 
 def register(
-    mcp: FastMCP, settings: Settings, members: MemberService, snapshots: SnapshotStore
+    mcp: FastMCP,
+    settings: Settings,
+    members: MemberService,
+    snapshots: SnapshotStore,
+    *,
+    review_app: AppConfig | None = None,
 ) -> None:
     policy = SpacePolicy(settings.allowed_spaces)
     docmost_base = str(settings.docmost_url).rstrip("/")
@@ -400,6 +406,7 @@ def register(
         ),
         annotations=_OVERWRITE,
         auth=require_scopes("write"),
+        app=review_app,
     )
     async def update_page(
         page: PageRef,
@@ -442,6 +449,7 @@ def register(
         ),
         annotations=_OVERWRITE,
         auth=require_scopes("write"),
+        app=review_app,
     )
     async def replace_page_json(
         page: PageRef,
@@ -489,6 +497,7 @@ def register(
         ),
         annotations=_OVERWRITE,
         auth=require_scopes("write"),
+        app=review_app,
     )
     async def replace_section_tool(
         page: PageRef,

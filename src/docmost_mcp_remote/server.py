@@ -203,8 +203,9 @@ def create_server(
 
     account.register(mcp, settings, members)
     read.register(mcp, settings, members)
-    write.register(mcp, settings, members, snapshots)
-    history.register(mcp, settings, members, snapshots)
+    review_app = views.view_apps().review if settings.interactive_views else None
+    write.register(mcp, settings, members, snapshots, review_app=review_app)
+    history.register(mcp, settings, members, snapshots, review_app=review_app)
     labels.register(mcp, settings, members)
     manage.register(mcp, settings, members)
     navigate.register(mcp, settings, members)
