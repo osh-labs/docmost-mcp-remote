@@ -14,7 +14,7 @@ Only the orchestrator edits this file. Status values: todo, dispatched, merged, 
 | S1 | Apps package core: build_view, bridge, DOM helpers, CSS | 1 | none | opus | R2 | verified | claude/laughing-gauss-gxcpu9--S1 | 7c83f2e | 7c83f2e | tests/test_apps.py -> 18 passed; R2 (Opus): pass, no blocking |
 | S2 | Feature flag and test harness helpers | 1 | none | sonnet | R0 | merged | claude/laughing-gauss-gxcpu9--S2 | 1d00c1a | 1d00c1a | tests/test_config.py -> 18 passed |
 | S3 | ADR 0007, security model and design notes | 1 | none | sonnet | R0 | merged | claude/laughing-gauss-gxcpu9--S3 | 75117cb | 75117cb | docs only; ruff format --check: 1 file unformatted (PLAN.md code block, pre-existing, not S3) |
-| S4 | Views module, ui:// resources, open_wiki, server wiring | 2 | S1, S2 | opus | R2 | merged | claude/laughing-gauss-gxcpu9--S4 | 4862385 | 4862385 | 4 passed, 30 skipped (8 of 10 contract tests in test_view_tools.py need DATABASE_TEST_URL, not yet run); R2 review running |
+| S4 | Views module, ui:// resources, open_wiki, server wiring | 2 | S1, S2 | opus | R2 | verified | claude/laughing-gauss-gxcpu9--S4 | 4862385 | 4862385 | 4 passed, 30 skipped (8 of 10 contract tests in test_view_tools.py need DATABASE_TEST_URL, not yet run); R2 (Opus): pass, no blocking |
 | S5 | Wiki browser view | 2 | S1 | opus | R2 | dispatched | claude/laughing-gauss-gxcpu9--S5 | | | |
 | S6 | Change-review view (with version-history mode) | 2 | S1 | opus | R1 | merged | claude/laughing-gauss-gxcpu9--S6 | 4f96314 | 4f96314 | test_review_view.py + test_apps.py -> 29 passed; R1 review running |
 | S7 | Review app on write and history tools, open_page_history | 3 | S4, S6 | opus | R2 | todo | | | | |
@@ -34,6 +34,7 @@ None.
 
 ## Deferred
 
+- S4 R2 non-blocking nits: (1) `views.py:110` `space_id` not checked for existence when ALLOWED_SPACES is unset. (2) `views.py:110-123` `selected.space_id` can mismatch the page's space. (3) with ALLOWED_SPACES set, spaces may be listed up to 3 times per call; reuse `allowed_ids`. (4) `test_token_without_read_sees_no_views` does not assert a direct `read_resource` or `call` is refused.
 - S1 R2 non-blocking nits, for the integrator or a follow-up (priority 1 and 6 before the PR): (1) `dom.js:38` `el` accepts any tag, e.g. script/iframe/object/embed/style/link/meta; refuse them. (2) `__init__.py:68` lint is a case-sensitive substring search; note the limit in the security doc. (3) `dom.js:86` truncated hunk adds an extra empty context line. (4) `dom.js:9` `unwrap` restores only the lowercase escape. (5) `bridge.js:73` host style variables applied unchecked. (6) `bridge.js` `hostContext()` returns the internal object; copy or freeze. (7) `safeHref` keeps `user:pass@`. (8) no tests for bridge message checks or `el` attribute rejection.
 - Integrator: `ruff format --check .` flags a Python code block in `docs/plans/interactive-views-mcp-apps/PLAN.md` (line 60, from the planner commit 19e9ab7). Plain `ruff format .` rewrites that file (S2 agent saw this and reverted it); slices must not commit it. Fix or exclude before the PR so CI passes.
 - Phase 3: awaiting user go decision.
