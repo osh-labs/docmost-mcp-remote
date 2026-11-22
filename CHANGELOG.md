@@ -7,6 +7,18 @@ when upgrading lists it under "Upgrade notes".
 
 ## [Unreleased]
 
+### Added
+
+- Interactive views for clients that support MCP Apps, off by default. Set
+  `INTERACTIVE_VIEWS=true` to add the `open_wiki` tool (a wiki browser;
+  optional `space_id`, `page` and `query`) and the `open_page_history` tool
+  (the versions of a page, with a diff for each), both with the `read` scope.
+  The results of `diff_page`, `update_page`, `replace_section` and
+  `replace_page_json` also show a change review. The views are read-only:
+  every write still goes through Claude and its approval prompt. With the
+  flag off the tool list and resources do not change (62 tools, 64 with the
+  flag). See ADR 0007 and `docs/security-model.md`.
+
 ### Security
 
 - Members no longer act as each other in Docmost. The client shared by all

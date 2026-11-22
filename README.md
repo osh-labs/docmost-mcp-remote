@@ -46,7 +46,7 @@ see and every change in Docmost carries their name.
   `delete` and `admin` are opt-in per client. Nothing is deleted permanently,
   risky changes ask you first, and an encrypted snapshot of a page is saved
   before every change.
-- 🧰 **62 tools.** Read, search, write by section, comment with @-mentions,
+- 🧰 **62 tools** (64 with `INTERACTIVE_VIEWS`). Read, search, write by section, comment with @-mentions,
   move, label, export, restore old versions, check a space's health and run
   the workspace: spaces, groups, invitations and roles.
 - 📎 **Files without burning tokens.** The assistant gives you an upload link:
@@ -360,7 +360,7 @@ Connected apps and tokens are listed and revoked on the account page,
 
 ## 🧰 Tools
 
-62 tools in groups. The scope is what a client needs to be granted to see the
+62 tools in groups (64 with `INTERACTIVE_VIEWS`, see [Interactive views](#interactive-views)). The scope is what a client needs to be granted to see the
 tool: `read` is always granted, the others are opt-in.
 
 **Account and spaces**
@@ -485,6 +485,13 @@ tool: `read` is always granted, the others are opt-in.
 | 61 | `deactivate_member` | admin | Stop someone from signing in, keeping their account |
 | 62 | `activate_member` | admin | Let a deactivated member sign in again |
 
+**Interactive views** (listed only with `INTERACTIVE_VIEWS=true`, see [Interactive views](#interactive-views))
+
+| Tool | Scope | What it does |
+|---|---|---|
+| `open_wiki` | read | Open the wiki browser; optional `space_id`, `page` and `query` to start somewhere |
+| `open_page_history` | read | Open the version list of a page (`page`), with a diff for each version |
+
 People cannot be removed from the workspace or from groups, and groups cannot
 be deleted. Docmost has no way to create an account or edit someone else's
 profile: people join through an invitation and set their own password.
@@ -561,6 +568,40 @@ Desktop and Claude Code do; many clients only support tools).
 A prompt only writes the request; the model does the work with the tools the
 connection is allowed to use. Resource reads count against
 `TOOL_CALLS_PER_MINUTE` and go to the audit log as `read_resource`.
+
+<a id="interactive-views"></a>
+
+## 🖼️ Interactive views
+
+With `INTERACTIVE_VIEWS=true` (default `false`) the server adds two read-only
+views for clients that support [MCP Apps](https://modelcontextprotocol.io/extensions/apps/overview):
+
+- **Wiki browser.** `open_wiki` opens a browser for spaces, the page tree,
+  search and page text. Optional arguments: `space_id`, `page` and `query`.
+- **Page history.** `open_page_history(page)` opens the versions of a page,
+  with a diff for each.
+- **Change review.** The results of `diff_page`, `update_page`,
+  `replace_section` and `replace_page_json` show the change as a diff.
+
+Both new tools need the `read` scope and are listed only when the flag is on.
+With the flag off the tool list and resources are the same as before.
+
+The views are read-only. Every write still goes through Claude and its
+approval prompt, and the views never send wiki text back to the model. Wiki
+text is shown as plain text, links open only through the client, and images
+are shown as a placeholder with the file name.
+
+Client notes:
+
+- Hosts that support MCP Apps, such as Claude, show the views. Other clients
+  get the same text results.
+- After you deploy a new version, use "Refresh tools list" in the client to
+  see the new tools.
+- The entry point (`open_wiki`) and the side panel have limited availability
+  and may not show in every client.
+
+More: [ADR 0007](https://github.com/bbik52/docmost-mcp-remote/blob/master/docs/adr/0007-interactive-views-mcp-apps.md) and the
+[security model](https://github.com/bbik52/docmost-mcp-remote/blob/master/docs/security-model.md).
 
 <a id="supported-docmost-versions"></a>
 
@@ -696,6 +737,7 @@ IMAGE_TAG=1.1.0 docker compose up -d
 | `AUDIT_RETENTION_DAYS` | no | `90` | Days an audit log entry is kept |
 | `UPLOAD_RETENTION_MINUTES` | no | `60` | Minutes an upload link works; files not added to the page by then are deleted |
 | `UPLOAD_MAX_MB` | no | `50` | Largest total size of the files sent to one upload link |
+| `INTERACTIVE_VIEWS` | no | `false` | Add the interactive wiki browser, page history and change review for MCP Apps clients, and the `open_wiki` and `open_page_history` tools |
 | `TOOL_CALLS_PER_MINUTE` | no | `60` | Tool calls and resource reads one member may make per minute, over all their clients |
 | `WEB_SESSION_HOURS` | no | `12` | Hours a sign-in to the account page lasts |
 | `RELOGIN_MODE` | no | `ask` | `ask`: members sign in again when their Docmost session expires; `stored_password`: the password is kept encrypted and used to sign in again |
