@@ -11,9 +11,9 @@ Only the orchestrator edits this file. Status values: todo, dispatched, merged, 
 
 | ID | Title | Wave | Depends on | Model | Review tier | Status | Branch | Merge SHA | Tested SHA | Tests |
 |---|---|---|---|---|---|---|---|---|---|---|
-| S1 | Apps package core: build_view, bridge, DOM helpers, CSS | 1 | none | opus | R2 | todo | | | | |
-| S2 | Feature flag and test harness helpers | 1 | none | sonnet | R0 | todo | | | | |
-| S3 | ADR 0007, security model and design notes | 1 | none | sonnet | R0 | todo | | | | |
+| S1 | Apps package core: build_view, bridge, DOM helpers, CSS | 1 | none | opus | R2 | dispatched | claude/laughing-gauss-gxcpu9--S1 | | | |
+| S2 | Feature flag and test harness helpers | 1 | none | sonnet | R0 | dispatched | claude/laughing-gauss-gxcpu9--S2 | | | |
+| S3 | ADR 0007, security model and design notes | 1 | none | sonnet | R0 | dispatched | claude/laughing-gauss-gxcpu9--S3 | | | |
 | S4 | Views module, ui:// resources, open_wiki, server wiring | 2 | S1, S2 | opus | R2 | todo | | | | |
 | S5 | Wiki browser view | 2 | S1 | opus | R2 | todo | | | | |
 | S6 | Change-review view (with version-history mode) | 2 | S1 | opus | R1 | todo | | | | |
@@ -22,11 +22,11 @@ Only the orchestrator edits this file. Status values: todo, dispatched, merged, 
 
 ## Current wave
 
-Wave 1 not started (S1, S2, S3).
+Wave 1 dispatched (S1, S2, S3).
 
 ## Next step
 
-Confirm whether `DATABASE_TEST_URL` (Postgres 17) is available for server-backed tests, then dispatch wave 1: S1, S2, S3.
+Merge wave 1 as slices report. Before dispatching wave 2, confirm `DATABASE_TEST_URL` (Postgres 17) is available for server-backed tests.
 
 ## Blocked
 
@@ -38,6 +38,7 @@ None.
 
 ## Decisions
 
+- 2026-11-22 (orchestrator): slice-implementer, slice-integrator and slice-reviewer agent types were unavailable; slices run as general-purpose agents with the plan's model per slice.
 - 2026-11-22 (planner): `fastmcp.apps` is present in the locked FastMCP 4.1.3; no dependency bump planned.
 - 2026-11-22 (planner): flag-on tool and resource lists are asserted only in `tests/test_view_tools.py`; the existing flag-off exact-list tests stay unedited.
 - 2026-11-22 (planner): no slice tagged R2-fable.
