@@ -30,7 +30,7 @@ Run CI with Postgres 17 so the skipped server-backed tests (S4, S7, no-read refu
 
 ## Blocked
 
-None. (S5 R2 blocker fixed in 1c5e38d and merged at 3b151b3; re-review of the fix running.)
+- PR #5 CI (run 45270670221, job test (3.13), head f60f584): 3 failures in `tests/test_view_tools.py` (test_flag_off_has_no_views, test_open_wiki_meta, test_review_tools_open_the_review_view). update_page, replace_section, replace_page_json absent from tool entries; likely the read-only test token hides write tools (test bug). Routed to S7 agent for a fix on branch `--S7fix`; verify with a local Postgres if possible. (S5 R2 blocker fixed in 1c5e38d and merged at 3b151b3; re-review of the fix running.)
 
 ## Deferred
 
