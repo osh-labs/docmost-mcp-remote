@@ -30,7 +30,7 @@ Run CI with Postgres 17 so the skipped server-backed tests (S4, S7, no-read refu
 
 ## Blocked
 
-- PR #5 CI (run 45270670221, job test (3.13), head f60f584): 3 failures in `tests/test_view_tools.py` (test_flag_off_has_no_views, test_open_wiki_meta, test_review_tools_open_the_review_view). update_page, replace_section, replace_page_json absent from tool entries; likely the read-only test token hides write tools (test bug). Routed to S7 agent for a fix on branch `--S7fix`; verify with a local Postgres if possible. (S5 R2 blocker fixed in 1c5e38d and merged at 3b151b3; re-review of the fix running.)
+None. (PR #5 CI test failures fixed in ac422f7, merged at 4f609a2; awaiting CI re-run.)
 
 ## Deferred
 
@@ -70,7 +70,7 @@ None.
 - [x] Bridge (I2) and DOM (I3) change requests from S5 and S6 resolved in one place
 - [x] `INTERACTIVE_VIEWS` name and default match in `config.py`, `.env.example`, ADR 0007, READMEs
 - [x] `uv build` wheel contains `apps/*.js`, `*.css`, `*.html`; `docker build` run or recorded as not run
-- [ ] Full suite run with `DATABASE_TEST_URL` set (`FULL_SUITE_OK=1`): NOT RUN here (no Postgres 17); ran without it, 223 passed, 249 skipped. Needs CI.
+- [ ] Full suite run with `DATABASE_TEST_URL` set (CI run 45270670221: 441 passed, 3 failed; fixed, re-run pending; S7 agent also ran test_view_tools.py + test_write_tools.py on local Postgres 16: 52 passed) (`FULL_SUITE_OK=1`): NOT RUN here (no Postgres 17); ran without it, 223 passed, 249 skipped. Needs CI.
 - [ ] Source plan section 8 step 3 (fake-host Playwright): NOT RUN (no Python playwright here)
 - [x] No Phase 3 names in the diff (`INTERACTIVE_EDITING`, `EMBED_SHARED_SECRET`, `page.*`, `vendor/`, `frontend/`, `base_hash`, `document_hash`, `page_status`, `editor_session`)
 - [x] Lint and types: `uv run ruff format --check . && uv run ruff check . && uv run mypy`
