@@ -26,7 +26,7 @@ Wave 1 in progress: Wave 2 complete (S4, S6 verified; S5 merged, R2 review runni
 
 ## Next step
 
-Run CI with Postgres 17 so the skipped server-backed tests (S4, S7, no-read refusal asserts) execute; Playwright fake-host and docker build still not run. Decide the safeHref `http:` question (I3). PR not opened (awaiting user request).
+Run CI with Postgres 17 so the skipped server-backed tests (S4, S7, no-read refusal asserts) execute; Playwright fake-host and docker build still not run. Decide the safeHref `http:` question (I3). PR #5 is open; CI there is the first real run of the server-backed tests.
 
 ## Blocked
 
@@ -44,7 +44,7 @@ None. (S5 R2 blocker fixed in 1c5e38d and merged at 3b151b3; re-review of the fi
 
 ## Decisions
 
-- 2026-11-22 (orchestrator): PR not opened; the user has not asked for one.
+- 2026-11-23 (orchestrator): PR #5 (https://github.com/osh-labs/docmost-mcp-remote/pull/5) was created from the Claude Code UI; further pushes to this branch update it.
 - 2026-11-22 (orchestrator): `DATABASE_TEST_URL` is unset in this container; Postgres 16 is installed but not running and the Docker daemon is not reachable (Postgres 17 is required). Server-backed tests skip here. Wave 2 proceeds; server-backed coverage for S4 and S7 must be confirmed in CI or the final integration run.
 - 2026-11-22 (orchestrator): slice-implementer, slice-integrator and slice-reviewer agent types were unavailable; slices run as general-purpose agents with the plan's model per slice.
 - 2026-11-22 (planner): `fastmcp.apps` is present in the locked FastMCP 4.1.3; no dependency bump planned.
