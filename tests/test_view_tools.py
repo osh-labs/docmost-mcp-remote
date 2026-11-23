@@ -110,7 +110,8 @@ def test_instructions_mention_views_only_with_the_flag() -> None:
 
 
 def test_flag_off_has_no_views(off: RunningServer) -> None:
-    token = off.token()
+    # Write scope, so the write tools among REVIEW_TOOLS are listed too.
+    token = off.token(scopes=("write",))
     assert "open_wiki" not in off.tools(token)
     assert not [uri for uri in off.resources(token) if uri.startswith("ui://")]
     entries = {tool.name: tool for tool in off.tool_entries(token)}
@@ -142,7 +143,7 @@ def test_view_resources_are_the_built_views(on: RunningServer) -> None:
 
 
 def test_open_wiki_meta(on: RunningServer) -> None:
-    entries = {tool.name: tool for tool in on.tool_entries(on.token())}
+    entries = {tool.name: tool for tool in on.tool_entries(on.token(scopes=("write",)))}
     meta = entries["open_wiki"].meta or {}
     assert meta["ui"]["resourceUri"] == view_uri("browser")
     assert meta["openai/ui"]["entrypoints"] == [{"type": "global"}]
@@ -153,7 +154,7 @@ def test_open_wiki_meta(on: RunningServer) -> None:
 
 
 def test_review_tools_open_the_review_view(on: RunningServer) -> None:
-    entries = {tool.name: tool for tool in on.tool_entries(on.token())}
+    entries = {tool.name: tool for tool in on.tool_entries(on.token(scopes=("write",)))}
     for name in [*REVIEW_TOOLS, "open_page_history"]:
         meta = entries[name].meta or {}
         assert meta["ui"]["resourceUri"] == view_uri("review"), name
