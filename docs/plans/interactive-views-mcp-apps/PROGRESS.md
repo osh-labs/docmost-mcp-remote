@@ -57,6 +57,7 @@ None.
 
 ## Integrator log
 
+- 2026-11-23 conflict (Opus, general-purpose): PR #5 was `dirty` against master (a3eed26), so GitHub ran no CI. Merged master into the branch (3a62d15); only CHANGELOG.md conflicted. README.ru.md brought to 0.98 to match README.md. Lint pass; targeted tests 105 passed, 18 skipped.
 - 2026-11-22 final (Opus, general-purpose): applied ruff exclude for docs/plans (7d0bb6a); `el` refuses script/iframe/object/embed/style/link/meta, `hostContext()` returns a copy, new bridge/el tests, no-read-token refusal asserts (1d32d17). Lint pass. Full suite once: 223 passed, 0 failed, 249 skipped (server-backed, `DATABASE_TEST_URL` unset). ROUTE: none.
 
 ## Integration checklist
