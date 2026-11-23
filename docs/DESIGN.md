@@ -110,6 +110,18 @@ The server's own Postgres schema is managed with Alembic
   tables, new nullable columns). Changes that would break a running older
   version wait for a major release.
 
+## Interactive views
+
+Optional read-only views (wiki browser, change review) built on the MCP Apps
+extension. They are off unless `INTERACTIVE_VIEWS=true`; with the flag off the
+tool and resource lists are identical to 1.2.3. Each view is one
+self-contained HTML string (inline script and style, hand-written bridge, no
+npm, no CDN, no external origins) served as a `ui://` resource whose URI
+contains a content hash. Views call only read tools. Decision and risks:
+ADR 0007; security rules: "The view iframe" in `security-model.md`. Editing
+inside a view (Phase 3) is not part of this design and needs a separate
+decision.
+
 ## Open questions
 1. ~~Snapshot storage and retention.~~ Resolved, see "Snapshots" below.
 2. ~~How to update page bodies in CE without the temp-page trick.~~ Resolved, see "Page body updates" below.

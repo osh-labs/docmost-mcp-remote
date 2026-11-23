@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light dark">
+    <title>Change review</title>
+    <style>
+/*__BASE_CSS__*/
+
+.head {
+  align-items: baseline;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.head h1 {
+  margin: 0;
+}
+
+.notice {
+  border-left: 3px solid var(--view-border-2);
+  margin: 0 0 8px;
+  padding: 2px 0 2px 8px;
+}
+
+.notice.error {
+  border-left-color: var(--view-danger);
+}
+
+.notice ul {
+  margin: 4px 0 0;
+  padding-left: 20px;
+}
+
+.diff {
+  border: var(--view-line) solid var(--view-border-3);
+  border-radius: var(--view-radius-md);
+  margin: 0 0 12px;
+}
+
+.hunk + .hunk {
+  border-top: var(--view-line) solid var(--view-border-3);
+}
+
+.hunk-head {
+  background: var(--view-bg-2);
+  color: var(--view-text-2);
+  padding: 2px 8px;
+}
+
+.line {
+  display: flex;
+  font-family: var(--view-mono);
+  font-size: var(--view-xs);
+  white-space: pre-wrap;
+}
+
+.line .mark {
+  flex: 0 0 20px;
+  text-align: center;
+  user-select: none;
+}
+
+.line .body {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding-right: 8px;
+}
+
+.line.add {
+  background: color-mix(in srgb, #2e7d32 14%, transparent);
+}
+
+.line.del {
+  background: color-mix(in srgb, var(--view-danger) 14%, transparent);
+}
+
+:root[data-mode="fullscreen"] .diff {
+  max-height: 70vh;
+  overflow: auto;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+button.primary {
+  border-color: var(--view-border);
+  font-weight: var(--view-semibold);
+}
+
+button.link {
+  background: none;
+  border: none;
+  color: var(--view-accent);
+  min-height: 0;
+  padding: 0;
+  text-decoration: underline;
+}
+
+.versions {
+  list-style: none;
+  margin: 0 0 8px;
+  padding: 0;
+}
+
+.versions li + li {
+  border-top: var(--view-line) solid var(--view-border-3);
+}
+
+.versions button {
+  background: none;
+  border: none;
+  border-radius: 0;
+  display: block;
+  padding: 6px 4px;
+  text-align: left;
+  width: 100%;
+}
+
+.versions button[aria-current="true"] {
+  background: var(--view-bg-2);
+}
+
+.versions .meta {
+  color: var(--view-text-2);
+  display: block;
+  font-size: var(--view-xs);
+  font-weight: var(--view-normal);
+}
+
+.card dl {
+  display: grid;
+  gap: 2px 12px;
+  grid-template-columns: auto 1fr;
+  margin: 0 0 8px;
+}
+
+.card dt {
+  color: var(--view-text-2);
+}
+
+.card dd {
+  margin: 0;
+}
+    </style>
+  </head>
+  <body>
+    <main id="app" aria-live="polite"></main>
+    <script>
+/*__SCRIPTS__*/
+    </script>
+  </body>
+</html>

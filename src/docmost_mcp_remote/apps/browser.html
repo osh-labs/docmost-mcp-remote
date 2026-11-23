@@ -1,0 +1,275 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light dark">
+    <title>Wiki browser</title>
+    <style>
+/*__BASE_CSS__*/
+
+/* Wiki browser layout. */
+#app {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+
+.bar {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.bar h1 {
+  flex: 1 1 auto;
+  font-size: var(--view-md);
+  margin: 0;
+}
+
+.status {
+  color: var(--view-text-2);
+  font-size: var(--view-xs);
+  min-height: 1em;
+}
+
+.status[data-kind="error"] {
+  color: var(--view-danger);
+}
+
+.search {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+}
+
+.search input {
+  flex: 1 1 160px;
+  min-width: 0;
+}
+
+.search select {
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
+.layout {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+.side,
+.preview {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+#app[data-wide="true"] .layout {
+  align-items: flex-start;
+  flex-direction: row;
+}
+
+#app[data-wide="true"] .side {
+  flex: 0 0 320px;
+  max-height: calc(100vh - 80px);
+  max-width: 40%;
+  overflow-y: auto;
+}
+
+#app[data-wide="true"] .preview {
+  flex: 1 1 auto;
+  max-height: calc(100vh - 80px);
+  overflow-y: auto;
+}
+
+.section-title {
+  color: var(--view-text-2);
+  font-size: var(--view-xs);
+  font-weight: var(--view-semibold);
+  margin: 4px 0 0;
+  text-transform: uppercase;
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+}
+
+.item,
+.row {
+  border-radius: var(--view-radius-md);
+  cursor: pointer;
+  padding: 6px 8px;
+}
+
+.item:hover,
+.row:hover,
+.item[aria-selected="true"],
+.row[aria-selected="true"] {
+  background: var(--view-bg-3);
+}
+
+.item[aria-selected="true"] .item-title,
+.row[aria-selected="true"] .row-label {
+  font-weight: var(--view-semibold);
+}
+
+.item-title {
+  display: block;
+  font-weight: var(--view-medium);
+}
+
+.item-meta {
+  color: var(--view-text-2);
+  display: block;
+  font-size: var(--view-xs);
+}
+
+.snippet {
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  color: var(--view-text-2);
+  display: -webkit-box;
+  font-size: var(--view-xs);
+  overflow: hidden;
+}
+
+.row {
+  align-items: baseline;
+  display: flex;
+  gap: 4px;
+}
+
+.twisty {
+  color: var(--view-text-2);
+  flex: 0 0 1em;
+  text-align: center;
+}
+
+.row-label {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.more {
+  align-self: flex-start;
+  margin: 2px 0 2px 8px;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.selection .item-title {
+  margin-bottom: 6px;
+}
+
+.page-title {
+  margin-bottom: 2px;
+}
+
+.notice {
+  background: var(--view-bg-2);
+  border: var(--view-line) solid var(--view-border-3);
+  border-radius: var(--view-radius-md);
+  padding: 6px 8px;
+}
+
+.doc ul,
+.doc ol {
+  margin: 0 0 8px;
+  padding-left: 1.5em;
+}
+
+.doc li.task {
+  list-style: none;
+  margin-left: -1.2em;
+}
+
+.doc blockquote {
+  border-left: 3px solid var(--view-border-2);
+  color: var(--view-text-2);
+  margin: 0 0 8px;
+  padding: 0 0 0 10px;
+}
+
+.doc .callout {
+  background: var(--view-bg-2);
+  border: var(--view-line) solid var(--view-border-3);
+  border-radius: var(--view-radius-md);
+  margin: 0 0 8px;
+  padding: 8px 10px;
+}
+
+.doc pre.code {
+  background: var(--view-bg-3);
+  border-radius: var(--view-radius-md);
+  margin: 0 0 8px;
+  overflow-x: auto;
+  padding: 8px;
+}
+
+.doc hr {
+  border: 0;
+  border-top: var(--view-line) solid var(--view-border-3);
+  margin: 12px 0;
+}
+
+.doc .table-wrap {
+  margin: 0 0 8px;
+  overflow-x: auto;
+}
+
+.doc table {
+  border-collapse: collapse;
+}
+
+.doc td,
+.doc th {
+  border: var(--view-line) solid var(--view-border-3);
+  padding: 4px 8px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.doc td p:last-child,
+.doc th p:last-child,
+.doc li p:last-child {
+  margin-bottom: 0;
+}
+
+.doc .media {
+  border: var(--view-line) dashed var(--view-border-2);
+  border-radius: var(--view-radius-sm);
+  color: var(--view-text-2);
+  display: inline-block;
+  font-size: var(--view-xs);
+  padding: 2px 6px;
+}
+
+.doc .link {
+  color: var(--view-accent);
+  cursor: pointer;
+  text-decoration: underline;
+}
+    </style>
+  </head>
+  <body>
+    <main id="app"></main>
+    <script>
+/*__SCRIPTS__*/
+    </script>
+  </body>
+</html>

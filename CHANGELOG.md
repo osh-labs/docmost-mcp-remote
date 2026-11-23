@@ -7,6 +7,24 @@ when upgrading lists it under "Upgrade notes".
 
 ## [Unreleased]
 
+### Added
+
+- Interactive views for clients that support MCP Apps, off by default. Set
+  `INTERACTIVE_VIEWS=true` to add the `open_wiki` tool (a wiki browser;
+  optional `space_id`, `page` and `query`) and the `open_page_history` tool
+  (the versions of a page, with a diff for each), both with the `read` scope.
+  The results of `diff_page`, `update_page`, `replace_section` and
+  `replace_page_json` also show a change review. The views are read-only:
+  every write still goes through Claude and its approval prompt. With the
+  flag off the tool list and resources do not change (62 tools, 64 with the
+  flag). See ADR 0007 and `docs/security-model.md`.
+
+### Changed
+
+- Docmost 0.98.0 is added to the tested range and to the CI matrix.
+- Locked `dnspython` 2.9.2 and `opentelemetry-api` 1.45.2, which fix
+  CVE-2026-128089 and CVE-2026-126360.
+
 ### Fixed
 
 - Docmost 0.98 lists only active members unless asked for all of them, so
@@ -14,12 +32,6 @@ when upgrading lists it under "Upgrade notes".
   finding deactivated members, and `activate_member` could not find the person it
   should activate. The server now asks for all members, as earlier releases
   returned them, and skips removed people.
-
-### Changed
-
-- Docmost 0.98.0 is added to the tested range and to the CI matrix.
-- Locked `dnspython` 2.9.2 and `opentelemetry-api` 1.45.2, which fix
-  CVE-2026-128089 and CVE-2026-126360.
 
 ### Security
 

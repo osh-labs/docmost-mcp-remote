@@ -110,6 +110,10 @@ class Settings(BaseSettings):
         description="On an expired Docmost session: ask the member to sign in again, or sign "
         "in again with an encrypted stored password.",
     )
+    interactive_views: bool = Field(
+        default=False,
+        description="Offer interactive views (MCP Apps) for clients that can show them.",
+    )
     web_session_hours: int = Field(default=12, ge=1, le=24 * 7)
     host: str = "0.0.0.0"  # noqa: S104 - the server runs in a container behind a reverse proxy
     port: int = Field(default=8000, ge=1, le=65535)
